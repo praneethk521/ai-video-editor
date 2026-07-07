@@ -2,7 +2,7 @@
 
 ## M0 - Secure Foundation
 
-Status: In progress
+Status: Completed
 
 - Repository structure.
 - API authentication and OpenAPI.
@@ -14,7 +14,7 @@ Status: In progress
 
 ## M1 - Google Drive OAuth and Ingestion
 
-Status: Planned
+Status: Completed
 
 - Full OAuth callback.
 - Token encryption in secret manager or encrypted DB field.
@@ -24,7 +24,7 @@ Status: Planned
 
 ## M2 - AI Analysis and Planning
 
-Status: Planned
+Status: In progress
 
 - Configurable model providers.
 - Scene detection, blur detection, face/subject metadata, audio quality.
@@ -51,4 +51,3 @@ Status: Planned
 - Cost controls per project.
 - Full Kubernetes/ECS deployment.
 - Branch protection and required PR reviews.
-

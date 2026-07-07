@@ -37,6 +37,12 @@ class RenderStatus(str, enum.Enum):
     failed = "failed"
 
 
+class PlanStatus(str, enum.Enum):
+    draft = "draft"
+    approved = "approved"
+    rejected = "rejected"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -66,8 +72,13 @@ class OAuthConnection(Base):
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
     provider: Mapped[str] = mapped_column(String(64), default="google_drive")
     folder_url_hash: Mapped[str] = mapped_column(String(128))
+    selected_folder_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     scopes: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="pending_oauth")
+    oauth_state_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    encrypted_token_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    connected_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -83,6 +94,7 @@ class MediaAsset(Base):
     duration_seconds: Mapped[float] = mapped_column(Float, default=0)
     orientation: Mapped[str] = mapped_column(String(32), default="unknown")
     private_locator: Mapped[str] = mapped_column(String(512))
+    content_checksum: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     malware_scan_status: Mapped[str] = mapped_column(String(32), default="pending")
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -106,8 +118,11 @@ class TimelinePlan(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
     variant: Mapped[str] = mapped_column(String(32))
+    status: Mapped[PlanStatus] = mapped_column(Enum(PlanStatus), default=PlanStatus.draft)
     confidence_score: Mapped[float] = mapped_column(Float)
     plan_json: Mapped[dict] = mapped_column(JSON)
+    review_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-07-06
+Last updated: 2026-07-07
 
 ## Completed
 
@@ -17,17 +17,25 @@ Last updated: 2026-07-06
 - Added Kubernetes starter manifests.
 - Added GitHub Actions CI and Dependabot.
 - Added PRD, milestones, and security checklist.
+- Wired API render job creation to Redis/RQ dispatch.
+- Added authenticated internal worker callbacks for render running, completion, and failure states.
+- Persisted private output metadata and manual upload packages when worker renders complete.
+- Updated repository security guidance for a public-code, private-media model.
+- Added Google OAuth authorization URL generation, callback handling, and encrypted token storage.
+- Added malware scan status recording and blocked analysis until media assets are marked clean.
+- Added Drive folder traversal using connected OAuth tokens and checksum-based duplicate detection.
+- Added ClamAV-backed private Drive media scanning through authenticated internal scan endpoints.
+- Added timeline plan listing, rejection, regeneration, approval, and render gating on approved plans.
 
 ## Verification
 
-- API tests: passed locally (`3 passed`).
-- Worker tests: passed locally (`1 passed`).
-- Web build: not run locally because Node.js is not installed in this workspace. CI is configured to build the Next.js app with Node 22.
+- API tests: passed locally (`9 passed`).
+- Worker tests: passed locally (`2 passed`).
+- Ruff checks: passed locally.
+- Web build: not run in this update. CI is configured to build the Next.js app with Node 22.
 
 ## Next
 
-- Implement real Google OAuth callback and encrypted token storage.
-- Add malware scanning service.
-- Wire Redis/RQ render queue from API to worker.
-- Integrate production AI providers and human plan review UI.
+- Integrate production AI providers and richer scene/audio/subject metadata.
+- Build dashboard views for human plan review actions.
 - Add output validation using ffprobe.

@@ -41,7 +41,7 @@ Build a secure AI video editing automation platform that ingests private media, 
 
 ## Security Requirements
 
-- Private GitHub repository.
+- GitHub repository may be public or private, but must never contain secrets, raw media, private outputs, or local environment files.
 - No committed secrets.
 - Least-privilege Google OAuth scopes.
 - Encrypted credentials and media at rest.
@@ -59,4 +59,3 @@ Build a secure AI video editing automation platform that ingests private media, 
 - Render jobs are queued for both variants.
 - Output metadata remains private and manual-upload only.
 - CI runs tests.
-

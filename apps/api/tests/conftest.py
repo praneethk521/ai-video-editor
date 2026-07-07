@@ -5,6 +5,7 @@ from pathlib import Path
 
 os.environ["API_TOKEN"] = "test-token"
 os.environ["DATABASE_URL"] = f"sqlite+pysqlite:///{Path(__file__).parent / 'test.sqlite3'}"
+os.environ["RENDER_QUEUE_BACKEND"] = "database"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -29,4 +30,3 @@ def client():
 @pytest.fixture
 def auth_headers():
     return {"Authorization": "Bearer test-token"}
-

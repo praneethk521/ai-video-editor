@@ -2,7 +2,7 @@
 
 Production-oriented AI video editing automation platform for private media ingestion, analysis, timeline planning, rendering, and review.
 
-The repository is structured for a private GitHub repository and secure deployment. It does not publish to YouTube, Instagram, or any public destination. Outputs are stored privately and are intended for manual upload only.
+The repository is structured for secure deployment. The source code can live in a public or private GitHub repository, but real secrets, raw media, local databases, and rendered outputs must stay private and untracked. It does not publish to YouTube, Instagram, or any public destination. Outputs are stored privately and are intended for manual upload only.
 
 ## Architecture
 
@@ -17,7 +17,7 @@ The repository is structured for a private GitHub repository and secure deployme
 
 ## Local Quickstart
 
-1. Copy `.env.example` to `.env` and set `API_TOKEN` plus provider credentials.
+1. Copy `.env.example` to `.env` and set `API_TOKEN`, `TOKEN_ENCRYPTION_KEY`, plus provider credentials.
 2. Start services:
 
 ```bash
@@ -34,7 +34,10 @@ The current executable slice supports:
 - Create projects.
 - Connect a private Google Drive folder record with least-privilege scope metadata.
 - Validate and register uploaded or Drive media assets.
+- Traverse connected Google Drive folders and skip duplicate media by checksum.
+- Stream private Drive media through ClamAV before analysis/rendering.
 - Generate deterministic analysis metadata and timeline plans.
+- Review, reject, regenerate, and approve timeline plans before rendering.
 - Queue render jobs for landscape and vertical outputs.
 - Register private outputs.
 - Audit user actions without logging secrets, tokens, public URLs, or file contents.
@@ -50,9 +53,9 @@ The current executable slice supports:
 - Audit logs intentionally store metadata, not sensitive payloads.
 - Workers are intended to run in locked-down containers with CPU, memory, disk, and duration limits.
 
-## Private GitHub Setup
+## GitHub Setup
 
-Create this repository as private and enable:
+Create this repository and enable:
 
 - Branch protection on `main`.
 - Required PR reviews.
@@ -60,7 +63,7 @@ Create this repository as private and enable:
 - Dependabot alerts and updates.
 - GitHub Actions OIDC for cloud deploy credentials.
 
-See `docs/SECURITY_CHECKLIST.md` for the full checklist.
+For public repositories, keep using `.env.example` only and never commit source media, rendered outputs, local databases, or provider credentials. See `docs/SECURITY_CHECKLIST.md` for the full checklist.
 
 ## Tests
 
@@ -77,4 +80,3 @@ pytest
 - Product requirements: `docs/PRD.md`
 - Milestones: `docs/MILESTONES.md`
 - Current implementation status: `docs/status.md`
-

@@ -10,19 +10,30 @@ from app.schemas.api import (
     AnalyzeResponse,
     ConnectDriveRequest,
     ConnectDriveResponse,
+    DriveSyncResponse,
     IngestRequest,
     IngestResponse,
     OutputResponse,
+    PlanRegenerateRequest,
+    PlanReviewRequest,
     ProjectCreate,
     ProjectRead,
     ProjectStatusResponse,
     RenderRequest,
     RenderResponse,
+    TimelinePlanRead,
+    TimelinePlansResponse,
 )
 from app.services.audit import audit
-from app.services.media import create_drive_connection, create_media_asset
-from app.services.planning import analyze_and_plan
-from app.services.rendering import enqueue_render_jobs
+from app.services.media import complete_drive_oauth, create_drive_connection, create_media_asset, sync_drive_folder
+from app.services.planning import (
+    analyze_and_plan,
+    approve_timeline_plan,
+    list_timeline_plans,
+    regenerate_timeline_plans,
+    reject_timeline_plan,
+)
+from app.services.rendering import create_render_jobs, dispatch_render_jobs, fail_render_job
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -59,7 +70,7 @@ def connect_drive(
     user: CurrentUser = Depends(get_current_user),
 ):
     get_project_or_404(db, project_id, user)
-    connection = create_drive_connection(db, project_id=project_id, folder_url=str(payload.folder_url))
+    connection, authorization_url = create_drive_connection(db, project_id=project_id, folder_url=str(payload.folder_url))
     audit(
         db,
         user_id=user.id,
@@ -70,6 +81,38 @@ def connect_drive(
     )
     db.commit()
     db.refresh(connection)
+    return ConnectDriveResponse(
+        connection_id=connection.id,
+        status=connection.status,
+        scopes=connection.scopes,
+        authorization_url=authorization_url,
+    )
+
+
+@router.get("/{project_id}/connect-drive/callback", response_model=ConnectDriveResponse)
+def connect_drive_callback(
+    project_id: str,
+    code: str,
+    state: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    project = db.get(Project, project_id)
+    if project is None or project.status == ProjectStatus.deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
+    try:
+        connection = complete_drive_oauth(db, project_id=project_id, state=state, code=code)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    audit(
+        db,
+        user_id="oauth-callback",
+        project_id=project_id,
+        action="drive.oauth.connected",
+        correlation_id=request.state.correlation_id,
+        metadata={"scopes": connection.scopes, "provider": connection.provider},
+    )
+    db.commit()
     return ConnectDriveResponse(connection_id=connection.id, status=connection.status, scopes=connection.scopes)
 
 
@@ -103,6 +146,36 @@ def ingest(
     return IngestResponse(accepted_asset_ids=accepted)
 
 
+@router.post("/{project_id}/sync-drive", response_model=DriveSyncResponse)
+def sync_drive(
+    project_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = get_project_or_404(db, project_id, user)
+    try:
+        result = sync_drive_folder(db, project_id=project.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    project.status = ProjectStatus.ingesting
+    audit(
+        db,
+        user_id=user.id,
+        project_id=project_id,
+        action="drive.folder.synced",
+        correlation_id=request.state.correlation_id,
+        metadata={
+            "discovered_count": result["discovered_count"],
+            "accepted_count": len(result["accepted_asset_ids"]),
+            "duplicate_count": result["duplicate_count"],
+            "skipped_count": result["skipped_count"],
+        },
+    )
+    db.commit()
+    return DriveSyncResponse(**result)
+
+
 @router.post("/{project_id}/analyze", response_model=AnalyzeResponse)
 def analyze(
     project_id: str,
@@ -121,6 +194,93 @@ def analyze(
     return AnalyzeResponse(analysis_id=analysis.id, timeline_plan_ids=[plan.id for plan in plans])
 
 
+@router.get("/{project_id}/plans", response_model=TimelinePlansResponse)
+def timeline_plans(
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = get_project_or_404(db, project_id, user)
+    return TimelinePlansResponse(plans=[plan_to_response(plan) for plan in list_timeline_plans(db, project_id=project.id)])
+
+
+@router.post("/{project_id}/plans/regenerate", response_model=AnalyzeResponse)
+def regenerate_plans(
+    project_id: str,
+    payload: PlanRegenerateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = get_project_or_404(db, project_id, user)
+    try:
+        plans = regenerate_timeline_plans(db, project_id=project.id, variants=payload.variants, notes=payload.notes)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    audit(
+        db,
+        user_id=user.id,
+        project_id=project_id,
+        action="timeline.plans.regenerated",
+        correlation_id=request.state.correlation_id,
+        metadata={"variants": payload.variants},
+    )
+    db.commit()
+    return AnalyzeResponse(analysis_id="", timeline_plan_ids=[plan.id for plan in plans])
+
+
+@router.post("/{project_id}/plans/{plan_id}/approve", response_model=TimelinePlanRead)
+def approve_plan(
+    project_id: str,
+    plan_id: str,
+    payload: PlanReviewRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    get_project_or_404(db, project_id, user)
+    try:
+        plan = approve_timeline_plan(db, project_id=project_id, plan_id=plan_id, notes=payload.notes)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    audit(
+        db,
+        user_id=user.id,
+        project_id=project_id,
+        action="timeline.plan.approved",
+        correlation_id=request.state.correlation_id,
+        metadata={"plan_id": plan_id, "variant": plan.variant},
+    )
+    db.commit()
+    return plan_to_response(plan)
+
+
+@router.post("/{project_id}/plans/{plan_id}/reject", response_model=TimelinePlanRead)
+def reject_plan(
+    project_id: str,
+    plan_id: str,
+    payload: PlanReviewRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    get_project_or_404(db, project_id, user)
+    try:
+        plan = reject_timeline_plan(db, project_id=project_id, plan_id=plan_id, notes=payload.notes)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    audit(
+        db,
+        user_id=user.id,
+        project_id=project_id,
+        action="timeline.plan.rejected",
+        correlation_id=request.state.correlation_id,
+        metadata={"plan_id": plan_id, "variant": plan.variant},
+    )
+    db.commit()
+    return plan_to_response(plan)
+
+
 @router.post("/{project_id}/render", response_model=RenderResponse)
 def render(
     project_id: str,
@@ -131,7 +291,7 @@ def render(
 ):
     project = get_project_or_404(db, project_id, user)
     try:
-        jobs = enqueue_render_jobs(db, project_id=project.id, variants=payload.variants)
+        jobs, queue_items = create_render_jobs(db, project_id=project.id, variants=payload.variants)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     project.status = ProjectStatus.rendering
@@ -144,6 +304,23 @@ def render(
         metadata={"job_count": len(jobs)},
     )
     db.commit()
+    try:
+        dispatch_render_jobs(queue_items)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except Exception as exc:
+        for job in jobs:
+            fail_render_job(db, render_job_id=job.id, error_message=f"failed to enqueue render job: {exc}")
+        audit(
+            db,
+            user_id=user.id,
+            project_id=project_id,
+            action="render.jobs.enqueue_failed",
+            correlation_id=request.state.correlation_id,
+            metadata={"job_count": len(jobs)},
+        )
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="render queue unavailable") from exc
     return RenderResponse(render_job_ids=[job.id for job in jobs])
 
 
@@ -201,3 +378,13 @@ def delete_project(
     db.commit()
     return None
 
+
+def plan_to_response(plan) -> TimelinePlanRead:
+    return TimelinePlanRead(
+        id=plan.id,
+        variant=plan.variant,
+        status=plan.status.value,
+        confidence_score=plan.confidence_score,
+        plan=plan.plan_json,
+        review_notes=plan.review_notes,
+    )

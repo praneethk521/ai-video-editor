@@ -23,6 +23,7 @@ class ConnectDriveResponse(BaseModel):
     connection_id: str
     status: str
     scopes: str
+    authorization_url: str | None = None
 
 
 class IngestAsset(BaseModel):
@@ -42,9 +43,38 @@ class IngestResponse(BaseModel):
     accepted_asset_ids: list[str]
 
 
+class DriveSyncResponse(BaseModel):
+    discovered_count: int
+    accepted_asset_ids: list[str]
+    duplicate_count: int
+    skipped_count: int
+
+
 class AnalyzeResponse(BaseModel):
     analysis_id: str
     timeline_plan_ids: list[str]
+
+
+class TimelinePlanRead(BaseModel):
+    id: str
+    variant: str
+    status: str
+    confidence_score: float
+    plan: dict
+    review_notes: str | None = None
+
+
+class TimelinePlansResponse(BaseModel):
+    plans: list[TimelinePlanRead]
+
+
+class PlanReviewRequest(BaseModel):
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class PlanRegenerateRequest(BaseModel):
+    variants: list[str] = Field(default_factory=lambda: ["youtube_16x9", "shorts_9x16"])
+    notes: str | None = Field(default=None, max_length=2000)
 
 
 class RenderRequest(BaseModel):
@@ -65,3 +95,22 @@ class ProjectStatusResponse(BaseModel):
 class OutputResponse(BaseModel):
     outputs: list[dict]
 
+
+class WorkerRenderCompleteRequest(BaseModel):
+    variant: str
+    private_locator: str
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    duration_seconds: float = Field(ge=0)
+    file_size_bytes: int = Field(ge=0)
+    upload_package: dict
+
+
+class WorkerRenderFailedRequest(BaseModel):
+    error_message: str = Field(min_length=1, max_length=2000)
+
+
+class MalwareScanResultRequest(BaseModel):
+    status: str
+    scanner: str = Field(default="manual")
+    details: dict = Field(default_factory=dict)

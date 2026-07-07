@@ -5,5 +5,7 @@ SQLAlchemy==2.0.36
 psycopg[binary]==3.2.13
 python-multipart==0.0.20
 redis==5.2.1
+rq==2.1.0
+cryptography==44.0.0
 structlog==24.4.0
 orjson==3.10.12

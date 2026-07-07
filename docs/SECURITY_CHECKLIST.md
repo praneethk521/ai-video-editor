@@ -2,7 +2,7 @@
 
 ## Repository
 
-- Use a private GitHub repository.
+- Public or private source repositories are acceptable only if media, outputs, local databases, and real secrets remain untracked.
 - Enable branch protection on `main`.
 - Require at least one approving review.
 - Enable secret scanning and push protection.
@@ -14,6 +14,7 @@
 - Store real secrets in AWS Secrets Manager, Doppler, Vault, or GitHub Actions secrets.
 - Commit only `.env.example`.
 - Rotate Google OAuth, AI provider, database, and n8n secrets regularly.
+- Set `TOKEN_ENCRYPTION_KEY` before storing OAuth credentials outside local/test.
 - Never log OAuth tokens, media locators, raw URLs, or file contents.
 
 ## Google Drive
@@ -21,6 +22,7 @@
 - Use OAuth.
 - Default to `https://www.googleapis.com/auth/drive.readonly`.
 - Download only authorized files from the selected folder.
+- Store Drive file identifiers and checksums as metadata, not raw public URLs.
 - Store encrypted tokens only if refresh access is required.
 
 ## Media Handling
@@ -29,6 +31,7 @@
 - Validate MIME type, size, duration, and extension.
 - Sanitize filenames and block path traversal.
 - Scan all files for malware before rendering.
+- Use the internal scan endpoint to stream private media bytes to ClamAV before analysis.
 - Store source and output media privately with encryption at rest.
 - Use short-lived signed URLs only for temporary internal access.
 - Cleanup temporary files after each job.
@@ -50,4 +53,3 @@
 - Encrypt n8n credentials.
 - Do not perform heavy rendering inside n8n.
 - Use n8n for orchestration and MCP/API calls only.
-

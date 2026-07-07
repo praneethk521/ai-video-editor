@@ -8,6 +8,7 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import ORJSONResponse
 
+from app.api.internal import router as internal_router
 from app.api.projects import router as projects_router
 from app.core.logging import configure_logging
 from app.db.session import Base, engine
@@ -56,6 +57,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(projects_router)
+    app.include_router(internal_router)
     return app
 
 

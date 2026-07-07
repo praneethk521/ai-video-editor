@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.jobs import render_timeline
 from app.render import VideoRenderer
 
 
@@ -39,3 +40,31 @@ def test_renderer_validates_and_creates_private_output(tmp_path: Path):
     assert Path(result.output_path).exists()
     assert result.upload_package["manual_upload_only"] is True
 
+
+def test_render_timeline_returns_private_output_metadata():
+    plan = {
+        "project_id": "project-1",
+        "variant": "youtube_16x9",
+        "version": 1,
+        "confidence_score": 0.77,
+        "tracks": [
+            {
+                "type": "video",
+                "clips": [
+                    {
+                        "asset_id": "asset-1",
+                        "start": 0,
+                        "end": 2.5,
+                        "timeline_start": 0,
+                    }
+                ],
+            }
+        ],
+        "export": {"width": 1920, "height": 1080, "fps": 30, "format": "mp4"},
+    }
+
+    result = render_timeline(plan)
+    assert result["variant"] == "youtube_16x9"
+    assert result["private_locator"] == "file://private/project-1/youtube_16x9.mp4"
+    assert result["file_size_bytes"] > 0
+    assert result["upload_package"]["manual_upload_only"] is True

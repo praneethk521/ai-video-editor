@@ -19,8 +19,13 @@ CREATE TABLE IF NOT EXISTS oauth_connections (
   project_id VARCHAR(64) NOT NULL REFERENCES projects(id),
   provider VARCHAR(64) NOT NULL DEFAULT 'google_drive',
   folder_url_hash VARCHAR(128) NOT NULL,
+  selected_folder_id VARCHAR(255),
   scopes TEXT NOT NULL,
   status VARCHAR(32) NOT NULL DEFAULT 'pending_oauth',
+  oauth_state_hash VARCHAR(128),
+  encrypted_token_json TEXT,
+  token_expires_at TIMESTAMPTZ,
+  connected_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -34,6 +39,7 @@ CREATE TABLE IF NOT EXISTS media_assets (
   duration_seconds DOUBLE PRECISION NOT NULL DEFAULT 0,
   orientation VARCHAR(32) NOT NULL DEFAULT 'unknown',
   private_locator VARCHAR(512) NOT NULL,
+  content_checksum VARCHAR(128),
   malware_scan_status VARCHAR(32) NOT NULL DEFAULT 'pending',
   metadata_json JSONB NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -51,8 +57,11 @@ CREATE TABLE IF NOT EXISTS timeline_plans (
   id VARCHAR(64) PRIMARY KEY,
   project_id VARCHAR(64) NOT NULL REFERENCES projects(id),
   variant VARCHAR(32) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'draft',
   confidence_score DOUBLE PRECISION NOT NULL,
   plan_json JSONB NOT NULL,
+  review_notes TEXT,
+  approved_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -92,6 +101,6 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_media_assets_project_id ON media_assets(project_id);
+CREATE INDEX IF NOT EXISTS idx_media_assets_project_checksum ON media_assets(project_id, content_checksum);
 CREATE INDEX IF NOT EXISTS idx_render_jobs_project_id ON render_jobs(project_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_project_id ON audit_logs(project_id);
-

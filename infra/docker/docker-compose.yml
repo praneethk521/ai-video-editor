@@ -21,6 +21,16 @@ services:
     ports:
       - "6379:6379"
 
+  clamav:
+    image: clamav/clamav:1.4
+    ports:
+      - "3310:3310"
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --version >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+
   api:
     build:
       context: ../..
@@ -32,6 +42,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      clamav:
+        condition: service_healthy
     ports:
       - "8000:8000"
 
@@ -41,6 +53,8 @@ services:
       dockerfile: apps/worker/Dockerfile
     env_file:
       - ../../.env
+    environment:
+      API_BASE_URL: http://api:8000
     depends_on:
       - redis
     read_only: true
@@ -76,4 +90,3 @@ services:
 volumes:
   postgres-data:
   n8n-data:
-
