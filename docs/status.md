@@ -26,16 +26,16 @@ Last updated: 2026-07-07
 - Added Drive folder traversal using connected OAuth tokens and checksum-based duplicate detection.
 - Added ClamAV-backed private Drive media scanning through authenticated internal scan endpoints.
 - Added timeline plan listing, rejection, regeneration, approval, and render gating on approved plans.
+- Added dashboard project console for Drive sync, analysis, plan review, approval, rendering, and outputs.
 
 ## Verification
 
 - API tests: passed locally (`9 passed`).
 - Worker tests: passed locally (`2 passed`).
 - Ruff checks: passed locally.
-- Web build: not run in this update. CI is configured to build the Next.js app with Node 22.
+- Web build: passed locally with Next.js production build.
 
 ## Next
 
 - Integrate production AI providers and richer scene/audio/subject metadata.
-- Build dashboard views for human plan review actions.
 - Add output validation using ffprobe.

@@ -1,17 +1,248 @@
-import { FileVideo, LockKeyhole, ShieldCheck, Workflow } from "lucide-react";
+"use client";
 
-const states = [
-  { label: "Private media", value: "Google Drive OAuth", icon: LockKeyhole },
-  { label: "Workflow", value: "Self-hosted n8n", icon: Workflow },
-  { label: "Render targets", value: "16:9 and 9:16", icon: FileVideo },
-  { label: "Security", value: "Manual upload only", icon: ShieldCheck }
-];
+import {
+  CheckCircle2,
+  Clapperboard,
+  FileVideo,
+  FolderSync,
+  GitBranch,
+  Loader2,
+  Play,
+  RefreshCw,
+  ShieldCheck,
+  XCircle
+} from "lucide-react";
+import { useMemo, useState } from "react";
+
+type TimelineClip = {
+  asset_id: string;
+  start: number;
+  end: number;
+  timeline_start: number;
+  caption?: string;
+  crop_strategy?: string;
+};
+
+type TimelineTrack = {
+  type: string;
+  clips: TimelineClip[];
+};
+
+type TimelinePlanBody = {
+  tracks?: TimelineTrack[];
+  strategy?: {
+    hook?: string;
+    pacing?: string;
+    title_ideas?: string[];
+  };
+  export?: {
+    width?: number;
+    height?: number;
+    fps?: number;
+  };
+};
+
+type TimelinePlan = {
+  id: string;
+  variant: string;
+  status: string;
+  confidence_score: number;
+  plan: TimelinePlanBody;
+  review_notes?: string | null;
+};
+
+type ProjectStatus = {
+  project_id: string;
+  status: string;
+  media_count: number;
+  render_jobs: Array<{ id: string; variant: string; status: string }>;
+};
+
+type OutputVideo = {
+  id: string;
+  variant: string;
+  width: number;
+  height: number;
+  duration_seconds: number;
+  private_locator: string;
+};
+
+type LogEntry = {
+  tone: "ok" | "warn" | "error";
+  message: string;
+};
+
+const defaultApiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
+function variantLabel(variant: string) {
+  return variant === "youtube_16x9" ? "YouTube 16:9" : "Shorts 9:16";
+}
+
+function clipCount(plan: TimelinePlanBody) {
+  return plan.tracks?.reduce((sum, track) => sum + track.clips.length, 0) ?? 0;
+}
 
 export default function Page() {
+  const [apiBase, setApiBase] = useState(defaultApiBase);
+  const [apiToken, setApiToken] = useState("");
+  const [projectName, setProjectName] = useState("Launch video");
+  const [folderUrl, setFolderUrl] = useState("https://drive.google.com/drive/folders/private-folder-id");
+  const [projectId, setProjectId] = useState("");
+  const [status, setStatus] = useState<ProjectStatus | null>(null);
+  const [plans, setPlans] = useState<TimelinePlan[]>([]);
+  const [outputs, setOutputs] = useState<OutputVideo[]>([]);
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [log, setLog] = useState<LogEntry[]>([]);
+
+  const approvedCount = useMemo(() => plans.filter((plan) => plan.status === "approved").length, [plans]);
+  const draftCount = useMemo(() => plans.filter((plan) => plan.status === "draft").length, [plans]);
+
+  function pushLog(entry: LogEntry) {
+    setLog((current) => [entry, ...current].slice(0, 6));
+  }
+
+  async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+    if (!apiToken.trim()) {
+      throw new Error("API token is required");
+    }
+    const response = await fetch(`${apiBase.replace(/\/$/, "")}${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+        ...(init.headers ?? {})
+      }
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Request failed with ${response.status}`);
+    }
+    if (response.status === 204) {
+      return undefined as T;
+    }
+    return (await response.json()) as T;
+  }
+
+  async function run(label: string, task: () => Promise<void>) {
+    setBusy(label);
+    try {
+      await task();
+      pushLog({ tone: "ok", message: label });
+    } catch (error) {
+      pushLog({ tone: "error", message: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function refreshStatus(targetProjectId = projectId) {
+    if (!targetProjectId) return;
+    const nextStatus = await api<ProjectStatus>(`/projects/${targetProjectId}/status`);
+    setStatus(nextStatus);
+  }
+
+  async function refreshPlans(targetProjectId = projectId) {
+    if (!targetProjectId) return;
+    const response = await api<{ plans: TimelinePlan[] }>(`/projects/${targetProjectId}/plans`);
+    setPlans(response.plans);
+  }
+
+  async function createProject() {
+    await run("Project created", async () => {
+      const project = await api<{ id: string; status: string }>("/projects", {
+        method: "POST",
+        body: JSON.stringify({ name: projectName })
+      });
+      setProjectId(project.id);
+      setStatus({ project_id: project.id, status: project.status, media_count: 0, render_jobs: [] });
+      setPlans([]);
+      setOutputs([]);
+    });
+  }
+
+  async function connectDrive() {
+    await run("Drive connection started", async () => {
+      const response = await api<{ authorization_url?: string }>(`/projects/${projectId}/connect-drive`, {
+        method: "POST",
+        body: JSON.stringify({ folder_url: folderUrl })
+      });
+      if (response.authorization_url) {
+        window.open(response.authorization_url, "_blank", "noopener,noreferrer");
+      }
+      await refreshStatus();
+    });
+  }
+
+  async function syncDrive() {
+    await run("Drive folder synced", async () => {
+      await api(`/projects/${projectId}/sync-drive`, { method: "POST" });
+      await refreshStatus();
+    });
+  }
+
+  async function analyze() {
+    await run("Analysis complete", async () => {
+      await api(`/projects/${projectId}/analyze`, { method: "POST" });
+      await refreshStatus();
+      await refreshPlans();
+    });
+  }
+
+  async function regenerate() {
+    await run("Plans regenerated", async () => {
+      await api(`/projects/${projectId}/plans/regenerate`, {
+        method: "POST",
+        body: JSON.stringify({ variants: ["youtube_16x9", "shorts_9x16"], notes: "Regenerated from dashboard review." })
+      });
+      await refreshPlans();
+    });
+  }
+
+  async function approve(planId: string) {
+    await run("Plan approved", async () => {
+      await api(`/projects/${projectId}/plans/${planId}/approve`, {
+        method: "POST",
+        body: JSON.stringify({ notes: reviewNotes[planId] || null })
+      });
+      await refreshPlans();
+    });
+  }
+
+  async function reject(planId: string) {
+    await run("Plan rejected", async () => {
+      await api(`/projects/${projectId}/plans/${planId}/reject`, {
+        method: "POST",
+        body: JSON.stringify({ notes: reviewNotes[planId] || null })
+      });
+      await refreshPlans();
+    });
+  }
+
+  async function renderApproved() {
+    await run("Render queued", async () => {
+      await api(`/projects/${projectId}/render`, {
+        method: "POST",
+        body: JSON.stringify({ variants: ["youtube_16x9", "shorts_9x16"] })
+      });
+      await refreshStatus();
+    });
+  }
+
+  async function loadOutputs() {
+    await run("Outputs loaded", async () => {
+      const response = await api<{ outputs: OutputVideo[] }>(`/projects/${projectId}/outputs`);
+      setOutputs(response.outputs);
+    });
+  }
+
   return (
     <main className="shell">
       <aside className="sidebar">
-        <div className="brand">AI Video Editor</div>
+        <div className="brand">
+          <Clapperboard size={20} />
+          <span>AI Video Editor</span>
+        </div>
         <nav>
           <a className="active">Projects</a>
           <a>Media</a>
@@ -20,39 +251,197 @@ export default function Page() {
           <a>Audit</a>
         </nav>
       </aside>
+
       <section className="workspace">
         <header className="topbar">
           <div>
-            <h1>Projects</h1>
-            <p>Private edit automation from Drive folder to manual upload package.</p>
+            <h1>Project Console</h1>
+            <p>Private Drive media, approved timelines, manual upload outputs.</p>
           </div>
-          <button>New project</button>
+          <div className="topActions">
+            <button className="ghost" onClick={() => void refreshStatus()} disabled={!projectId || busy !== null}>
+              <RefreshCw size={16} />
+              Refresh
+            </button>
+            <button onClick={() => void renderApproved()} disabled={!projectId || approvedCount < 2 || busy !== null}>
+              <Play size={16} />
+              Render
+            </button>
+          </div>
         </header>
+
         <section className="statusGrid">
-          {states.map((item) => (
-            <article className="statusCard" key={item.label}>
-              <item.icon size={20} />
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </article>
-          ))}
-        </section>
-        <section className="projectTable">
-          <div className="tableHeader">
+          <article className="statusCard">
+            <GitBranch size={20} />
             <span>Project</span>
-            <span>Status</span>
-            <span>Outputs</span>
-            <span>Last audit event</span>
+            <strong>{status?.status ?? "Not selected"}</strong>
+          </article>
+          <article className="statusCard">
+            <FolderSync size={20} />
+            <span>Media</span>
+            <strong>{status?.media_count ?? 0} assets</strong>
+          </article>
+          <article className="statusCard">
+            <ShieldCheck size={20} />
+            <span>Plans</span>
+            <strong>{approvedCount} approved</strong>
+          </article>
+          <article className="statusCard">
+            <FileVideo size={20} />
+            <span>Renders</span>
+            <strong>{status?.render_jobs.length ?? 0} jobs</strong>
+          </article>
+        </section>
+
+        <section className="controlGrid">
+          <div className="panel setupPanel">
+            <div className="panelHeader">
+              <h2>Setup</h2>
+              {busy ? <Loader2 className="spin" size={18} /> : null}
+            </div>
+            <label>
+              API base URL
+              <input value={apiBase} onChange={(event) => setApiBase(event.target.value)} />
+            </label>
+            <label>
+              Bearer token
+              <input value={apiToken} onChange={(event) => setApiToken(event.target.value)} type="password" />
+            </label>
+            <div className="splitFields">
+              <label>
+                Project name
+                <input value={projectName} onChange={(event) => setProjectName(event.target.value)} />
+              </label>
+              <button onClick={() => void createProject()} disabled={busy !== null}>
+                New
+              </button>
+            </div>
+            <label>
+              Project ID
+              <input value={projectId} onChange={(event) => setProjectId(event.target.value)} />
+            </label>
+            <label>
+              Drive folder URL
+              <input value={folderUrl} onChange={(event) => setFolderUrl(event.target.value)} />
+            </label>
+            <div className="buttonRow">
+              <button className="ghost" onClick={() => void connectDrive()} disabled={!projectId || busy !== null}>
+                Connect
+              </button>
+              <button className="ghost" onClick={() => void syncDrive()} disabled={!projectId || busy !== null}>
+                Sync
+              </button>
+              <button className="ghost" onClick={() => void analyze()} disabled={!projectId || busy !== null}>
+                Analyze
+              </button>
+            </div>
           </div>
-          <div className="tableRow">
-            <span>Sample dummy media</span>
-            <span className="pill">Planned</span>
-            <span>Pending render</span>
-            <span>media.ingested</span>
+
+          <div className="panel reviewPanel">
+            <div className="panelHeader">
+              <h2>Plan Review</h2>
+              <div className="buttonRow compact">
+                <button className="ghost" onClick={() => void refreshPlans()} disabled={!projectId || busy !== null}>
+                  Load
+                </button>
+                <button className="ghost" onClick={() => void regenerate()} disabled={!projectId || busy !== null}>
+                  Regenerate
+                </button>
+              </div>
+            </div>
+            <div className="planList">
+              {plans.map((plan) => (
+                <article className="planCard" key={plan.id}>
+                  <div className="planTopline">
+                    <div>
+                      <strong>{variantLabel(plan.variant)}</strong>
+                      <span>{clipCount(plan.plan)} clips</span>
+                    </div>
+                    <span className={`pill ${plan.status}`}>{plan.status}</span>
+                  </div>
+                  <div className="planMeta">
+                    <span>{Math.round(plan.confidence_score * 100)}% confidence</span>
+                    <span>
+                      {plan.plan.export?.width}x{plan.plan.export?.height}
+                    </span>
+                    <span>{plan.plan.export?.fps ?? 30} fps</span>
+                  </div>
+                  <p>{plan.plan.strategy?.hook ?? "Timeline strategy pending."}</p>
+                  <textarea
+                    value={reviewNotes[plan.id] ?? ""}
+                    onChange={(event) => setReviewNotes((current) => ({ ...current, [plan.id]: event.target.value }))}
+                    placeholder="Review notes"
+                  />
+                  <div className="buttonRow">
+                    <button className="approve" onClick={() => void approve(plan.id)} disabled={busy !== null}>
+                      <CheckCircle2 size={16} />
+                      Approve
+                    </button>
+                    <button className="reject" onClick={() => void reject(plan.id)} disabled={busy !== null}>
+                      <XCircle size={16} />
+                      Reject
+                    </button>
+                  </div>
+                </article>
+              ))}
+              {plans.length === 0 ? <div className="emptyState">No plans loaded</div> : null}
+            </div>
+          </div>
+        </section>
+
+        <section className="bottomGrid">
+          <div className="panel">
+            <div className="panelHeader">
+              <h2>Render Jobs</h2>
+              <span className="muted">{draftCount} drafts</span>
+            </div>
+            <div className="jobTable">
+              {(status?.render_jobs ?? []).map((job) => (
+                <div className="jobRow" key={job.id}>
+                  <span>{variantLabel(job.variant)}</span>
+                  <span className={`pill ${job.status}`}>{job.status}</span>
+                </div>
+              ))}
+              {status?.render_jobs.length === 0 || !status ? <div className="emptyState">No render jobs</div> : null}
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panelHeader">
+              <h2>Outputs</h2>
+              <button className="ghost" onClick={() => void loadOutputs()} disabled={!projectId || busy !== null}>
+                Load
+              </button>
+            </div>
+            <div className="outputList">
+              {outputs.map((output) => (
+                <div className="outputRow" key={output.id}>
+                  <strong>{variantLabel(output.variant)}</strong>
+                  <span>
+                    {output.width}x{output.height} · {output.duration_seconds}s
+                  </span>
+                </div>
+              ))}
+              {outputs.length === 0 ? <div className="emptyState">No outputs</div> : null}
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panelHeader">
+              <h2>Activity</h2>
+              <span className="muted">{busy ?? "Idle"}</span>
+            </div>
+            <div className="logList">
+              {log.map((entry, index) => (
+                <div className={`logRow ${entry.tone}`} key={`${entry.message}-${index}`}>
+                  {entry.message}
+                </div>
+              ))}
+              {log.length === 0 ? <div className="emptyState">No activity</div> : null}
+            </div>
           </div>
         </section>
       </section>
     </main>
   );
 }
-
