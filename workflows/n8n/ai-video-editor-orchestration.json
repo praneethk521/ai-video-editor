@@ -1,0 +1,106 @@
+{
+  "name": "AI Video Editor - Private Orchestration",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "ai-video-editor/project-ready",
+        "httpMethod": "POST",
+        "responseMode": "lastNode"
+      },
+      "id": "webhook-start",
+      "name": "Project Ready Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.API_BASE_URL}}/projects/{{$json.project_id}}/analyze",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.API_TOKEN}}"
+            },
+            {
+              "name": "x-correlation-id",
+              "value": "={{$json.correlation_id}}"
+            }
+          ]
+        }
+      },
+      "id": "analysis",
+      "name": "Run Analysis and Timeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [280, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.API_BASE_URL}}/projects/{{$json.project_id}}/render",
+        "sendHeaders": true,
+        "sendBody": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.API_TOKEN}}"
+            },
+            {
+              "name": "x-correlation-id",
+              "value": "={{$json.correlation_id}}"
+            }
+          ]
+        },
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "variants",
+              "value": ["youtube_16x9", "shorts_9x16"]
+            }
+          ]
+        }
+      },
+      "id": "render",
+      "name": "Queue Private Renders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [560, 0]
+    }
+  ],
+  "connections": {
+    "Project Ready Webhook": {
+      "main": [
+        [
+          {
+            "node": "Run Analysis and Timeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Analysis and Timeline": {
+      "main": [
+        [
+          {
+            "node": "Queue Private Renders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 1800,
+    "saveManualExecutions": false,
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all"
+  }
+}
+

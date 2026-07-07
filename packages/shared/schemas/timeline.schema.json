@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://private.example/schemas/timeline.schema.json",
+  "title": "Video Timeline Plan",
+  "type": "object",
+  "required": ["project_id", "variant", "version", "confidence_score", "tracks", "export"],
+  "additionalProperties": false,
+  "properties": {
+    "project_id": { "type": "string", "minLength": 1 },
+    "variant": { "type": "string", "enum": ["youtube_16x9", "shorts_9x16"] },
+    "version": { "type": "integer", "minimum": 1 },
+    "confidence_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hook": { "type": "string" },
+        "pacing": { "type": "string" },
+        "title_ideas": { "type": "array", "items": { "type": "string" } },
+        "description": { "type": "string" },
+        "hashtags": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "tracks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["type", "clips"],
+        "additionalProperties": false,
+        "properties": {
+          "type": { "type": "string", "enum": ["video", "audio", "caption", "overlay"] },
+          "clips": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["asset_id", "start", "end", "timeline_start"],
+              "additionalProperties": false,
+              "properties": {
+                "asset_id": { "type": "string" },
+                "start": { "type": "number", "minimum": 0 },
+                "end": { "type": "number", "exclusiveMinimum": 0 },
+                "timeline_start": { "type": "number", "minimum": 0 },
+                "effect": { "type": "string" },
+                "caption": { "type": "string" },
+                "crop_strategy": { "type": "string", "enum": ["center", "face_subject", "blur_background"] }
+              }
+            }
+          }
+        }
+      }
+    },
+    "export": {
+      "type": "object",
+      "required": ["width", "height", "fps", "format"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "fps": { "type": "integer", "minimum": 1, "maximum": 120 },
+        "format": { "type": "string", "enum": ["mp4"] },
+        "audio_lufs": { "type": "number" },
+        "max_duration_seconds": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}
+

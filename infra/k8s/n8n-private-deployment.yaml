@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n-private
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: n8n-private
+  template:
+    metadata:
+      labels:
+        app: n8n-private
+    spec:
+      containers:
+        - name: n8n
+          image: n8nio/n8n:1.73.1
+          envFrom:
+            - secretRef:
+                name: n8n-secrets
+          ports:
+            - containerPort: 5678
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n-private
+spec:
+  type: ClusterIP
+  selector:
+    app: n8n-private
+  ports:
+    - port: 5678
+      targetPort: 5678
+

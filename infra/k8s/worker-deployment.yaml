@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-video-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-video-worker
+  template:
+    metadata:
+      labels:
+        app: ai-video-worker
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/OWNER/ai-video-editor-worker:latest
+          envFrom:
+            - secretRef:
+                name: ai-video-worker-secrets
+          volumeMounts:
+            - name: temp-media
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: temp-media
+          emptyDir:
+            sizeLimit: 20Gi
+
