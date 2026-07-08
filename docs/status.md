@@ -35,6 +35,7 @@ Last updated: 2026-07-08
 - Added lightweight circuit-breaker behavior for repeated external analysis provider failures.
 - Added internal analysis provider metrics for requests, retries, failures, health checks, circuit opens, and latency.
 - Added render validation signals for embedded subtitles, planned captions, black frames, and private delivery targets.
+- Added private output delivery state recording for Drive, S3, and local private locators.
 
 ## Verification
 
@@ -45,4 +46,4 @@ Last updated: 2026-07-08
 
 ## Next
 
-- Add private Drive/S3 output delivery implementation.
+- Add real Drive/S3 upload adapters behind the private output delivery state flow.

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.entities import AuditLog
 
-SENSITIVE_METADATA_KEYS = {"folder_url", "access_token", "refresh_token", "private_locator", "media_url"}
+SENSITIVE_METADATA_KEYS = {"folder_url", "access_token", "refresh_token", "private_locator", "delivered_locator", "media_url"}
 
 
 def audit(

@@ -388,6 +388,12 @@ def outputs(
                 "private_locator": row.private_locator,
                 "upload_package": row.upload_package_json,
                 "validation": row.validation_json,
+                "delivery": {
+                    "target": row.delivery_target,
+                    "status": row.delivery_status,
+                    "delivered_locator": row.delivered_locator,
+                    "details": row.delivery_json,
+                },
             }
             for row in rows
         ]

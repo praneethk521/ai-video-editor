@@ -47,6 +47,7 @@ The current executable slice supports:
 - Queue render jobs for landscape and vertical outputs.
 - Validate rendered outputs with ffprobe, subtitle signals, black-frame scan signals, and private delivery targets.
 - Register private output metadata.
+- Record private output delivery state for Drive, S3, or local private targets.
 - Audit user actions without logging secrets, tokens, public URLs, or file contents.
 
 ## Security Defaults

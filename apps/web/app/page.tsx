@@ -68,6 +68,10 @@ type OutputVideo = {
   validation?: {
     status?: string;
   };
+  delivery?: {
+    target?: string;
+    status?: string;
+  };
 };
 
 type AnalysisResult = {
@@ -483,6 +487,9 @@ export default function Page() {
                   </span>
                   <span className={`pill ${output.validation?.status ?? "pending"}`}>
                     {output.validation?.status ?? "pending validation"}
+                  </span>
+                  <span className={`pill ${output.delivery?.status ?? "private_staging"}`}>
+                    {output.delivery?.target ?? "delivery"} · {output.delivery?.status ?? "private staging"}
                   </span>
                 </div>
               ))}

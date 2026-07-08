@@ -115,6 +115,13 @@ class WorkerRenderFailedRequest(BaseModel):
     error_message: str = Field(min_length=1, max_length=2000)
 
 
+class OutputDeliveryRequest(BaseModel):
+    target: str = Field(min_length=1, max_length=32)
+    status: str = Field(min_length=1, max_length=64)
+    delivered_locator: str | None = Field(default=None, max_length=512)
+    details: dict = Field(default_factory=dict)
+
+
 class MalwareScanResultRequest(BaseModel):
     status: str
     scanner: str = Field(default="manual")

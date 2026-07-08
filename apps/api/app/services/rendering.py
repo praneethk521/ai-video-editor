@@ -98,6 +98,9 @@ def mark_render_job_running(db: Session, *, render_job_id: str) -> RenderJob:
 def complete_render_job(db: Session, *, render_job_id: str, result) -> OutputVideo:
     job = get_render_job(db, render_job_id)
     private_locator = validate_private_locator(result.private_locator)
+    upload_package = result.upload_package or {}
+    delivery_target = upload_package.get("delivery_target") or settings.output_storage_provider
+    delivery_status = upload_package.get("delivery_status") or "private_staging"
     output = (
         db.query(OutputVideo)
         .filter(OutputVideo.render_job_id == job.id)
@@ -113,8 +116,14 @@ def complete_render_job(db: Session, *, render_job_id: str, result) -> OutputVid
             height=result.height,
             duration_seconds=result.duration_seconds,
             file_size_bytes=result.file_size_bytes,
-            upload_package_json=result.upload_package,
+            upload_package_json=upload_package,
             validation_json=result.validation,
+            delivery_target=delivery_target,
+            delivery_status=delivery_status,
+            delivery_json={
+                "source_locator": private_locator,
+                "manual_upload_only": bool(upload_package.get("manual_upload_only", True)),
+            },
         )
         db.add(output)
     else:
@@ -124,8 +133,15 @@ def complete_render_job(db: Session, *, render_job_id: str, result) -> OutputVid
         output.height = result.height
         output.duration_seconds = result.duration_seconds
         output.file_size_bytes = result.file_size_bytes
-        output.upload_package_json = result.upload_package
+        output.upload_package_json = upload_package
         output.validation_json = result.validation
+        output.delivery_target = delivery_target
+        output.delivery_status = delivery_status
+        output.delivery_json = {
+            **(output.delivery_json or {}),
+            "source_locator": private_locator,
+            "manual_upload_only": bool(upload_package.get("manual_upload_only", True)),
+        }
 
     job.status = RenderStatus.succeeded
     job.error_message = None

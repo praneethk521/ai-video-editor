@@ -129,6 +129,32 @@ def test_project_lifecycle_keeps_private_media(client, auth_headers):
     assert len(outputs.json()["outputs"]) == 2
     assert all(output["upload_package"]["manual_upload_only"] is True for output in outputs.json()["outputs"])
     assert {output["validation"]["status"] for output in outputs.json()["outputs"]} == {"passed"}
+    assert {output["delivery"]["status"] for output in outputs.json()["outputs"]} == {"private_staging"}
+
+    first_output = outputs.json()["outputs"][0]
+    public_delivery = client.post(
+        f"/internal/output-videos/{first_output['id']}/delivery",
+        json={"target": "drive", "status": "delivered", "delivered_locator": "https://example.com/output.mp4", "details": {}},
+        headers=auth_headers,
+    )
+    assert public_delivery.status_code == 422
+
+    delivered = client.post(
+        f"/internal/output-videos/{first_output['id']}/delivery",
+        json={
+            "target": "drive",
+            "status": "delivered",
+            "delivered_locator": f"drive://private-output-folder/{first_output['variant']}.mp4",
+            "details": {"provider": "unit-test"},
+        },
+        headers=auth_headers,
+    )
+    assert delivered.status_code == 204
+
+    delivered_outputs = client.get(f"/projects/{project_id}/outputs", headers=auth_headers)
+    delivered_output = next(output for output in delivered_outputs.json()["outputs"] if output["id"] == first_output["id"])
+    assert delivered_output["delivery"]["status"] == "delivered"
+    assert delivered_output["delivery"]["delivered_locator"].startswith("drive://private-output-folder/")
 
 
 def test_rejects_public_media_urls_and_path_traversal(client, auth_headers):

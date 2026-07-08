@@ -88,6 +88,10 @@ CREATE TABLE IF NOT EXISTS output_videos (
   file_size_bytes INTEGER NOT NULL,
   upload_package_json JSONB NOT NULL DEFAULT '{}',
   validation_json JSONB NOT NULL DEFAULT '{}',
+  delivery_target VARCHAR(32) NOT NULL DEFAULT 'drive',
+  delivery_status VARCHAR(32) NOT NULL DEFAULT 'private_staging',
+  delivered_locator VARCHAR(512),
+  delivery_json JSONB NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
