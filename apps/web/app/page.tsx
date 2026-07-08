@@ -70,6 +70,20 @@ type OutputVideo = {
   };
 };
 
+type AnalysisResult = {
+  id: string;
+  provider: string;
+  result: {
+    summary?: {
+      scene_count?: number;
+      primary_orientation?: string;
+      average_highlight_score?: number;
+      audio_quality?: string;
+    };
+    asset_features?: Array<{ asset_id: string }>;
+  };
+};
+
 type LogEntry = {
   tone: "ok" | "warn" | "error";
   message: string;
@@ -94,12 +108,14 @@ export default function Page() {
   const [status, setStatus] = useState<ProjectStatus | null>(null);
   const [plans, setPlans] = useState<TimelinePlan[]>([]);
   const [outputs, setOutputs] = useState<OutputVideo[]>([]);
+  const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
 
   const approvedCount = useMemo(() => plans.filter((plan) => plan.status === "approved").length, [plans]);
   const draftCount = useMemo(() => plans.filter((plan) => plan.status === "draft").length, [plans]);
+  const latestAnalysis = analysisResults[0];
 
   function pushLog(entry: LogEntry) {
     setLog((current) => [entry, ...current].slice(0, 6));
@@ -151,6 +167,12 @@ export default function Page() {
     setPlans(response.plans);
   }
 
+  async function refreshAnalysis(targetProjectId = projectId) {
+    if (!targetProjectId) return;
+    const response = await api<{ results: AnalysisResult[] }>(`/projects/${targetProjectId}/analysis`);
+    setAnalysisResults(response.results);
+  }
+
   async function createProject() {
     await run("Project created", async () => {
       const project = await api<{ id: string; status: string }>("/projects", {
@@ -161,6 +183,7 @@ export default function Page() {
       setStatus({ project_id: project.id, status: project.status, media_count: 0, render_jobs: [] });
       setPlans([]);
       setOutputs([]);
+      setAnalysisResults([]);
     });
   }
 
@@ -188,6 +211,7 @@ export default function Page() {
     await run("Analysis complete", async () => {
       await api(`/projects/${projectId}/analyze`, { method: "POST" });
       await refreshStatus();
+      await refreshAnalysis();
       await refreshPlans();
     });
   }
@@ -337,6 +361,9 @@ export default function Page() {
               <button className="ghost" onClick={() => void analyze()} disabled={!projectId || busy !== null}>
                 Analyze
               </button>
+              <button className="ghost" onClick={() => void refreshAnalysis()} disabled={!projectId || busy !== null}>
+                Analysis
+              </button>
             </div>
           </div>
 
@@ -393,6 +420,37 @@ export default function Page() {
         </section>
 
         <section className="bottomGrid">
+          <div className="panel">
+            <div className="panelHeader">
+              <h2>Analysis</h2>
+              <span className="muted">{latestAnalysis?.provider ?? "No provider"}</span>
+            </div>
+            <div className="analysisList">
+              {latestAnalysis ? (
+                <>
+                  <div className="analysisMetric">
+                    <span>Scenes</span>
+                    <strong>{latestAnalysis.result.summary?.scene_count ?? 0}</strong>
+                  </div>
+                  <div className="analysisMetric">
+                    <span>Orientation</span>
+                    <strong>{latestAnalysis.result.summary?.primary_orientation ?? "unknown"}</strong>
+                  </div>
+                  <div className="analysisMetric">
+                    <span>Audio</span>
+                    <strong>{latestAnalysis.result.summary?.audio_quality ?? "unknown"}</strong>
+                  </div>
+                  <div className="analysisMetric">
+                    <span>Avg score</span>
+                    <strong>{Math.round((latestAnalysis.result.summary?.average_highlight_score ?? 0) * 100)}%</strong>
+                  </div>
+                </>
+              ) : (
+                <div className="emptyState">No analysis</div>
+              )}
+            </div>
+          </div>
+
           <div className="panel">
             <div className="panelHeader">
               <h2>Render Jobs</h2>

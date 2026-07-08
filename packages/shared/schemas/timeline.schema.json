@@ -18,7 +18,8 @@
         "pacing": { "type": "string" },
         "title_ideas": { "type": "array", "items": { "type": "string" } },
         "description": { "type": "string" },
-        "hashtags": { "type": "array", "items": { "type": "string" } }
+        "hashtags": { "type": "array", "items": { "type": "string" } },
+        "review_notes": { "type": "string" }
       }
     },
     "tracks": {
@@ -65,4 +66,3 @@
     }
   }
 }
-

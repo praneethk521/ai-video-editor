@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.models.entities import MediaAsset, OutputVideo, Project, ProjectStatus, RenderJob
 from app.schemas.api import (
     AnalyzeResponse,
+    AnalysisResultsResponse,
     ConnectDriveRequest,
     ConnectDriveResponse,
     DriveSyncResponse,
@@ -29,6 +30,7 @@ from app.services.media import complete_drive_oauth, create_drive_connection, cr
 from app.services.planning import (
     analyze_and_plan,
     approve_timeline_plan,
+    list_analysis_results,
     list_timeline_plans,
     regenerate_timeline_plans,
     reject_timeline_plan,
@@ -192,6 +194,26 @@ def analyze(
     audit(db, user_id=user.id, project_id=project_id, action="project.analyzed", correlation_id=request.state.correlation_id)
     db.commit()
     return AnalyzeResponse(analysis_id=analysis.id, timeline_plan_ids=[plan.id for plan in plans])
+
+
+@router.get("/{project_id}/analysis", response_model=AnalysisResultsResponse)
+def analysis_results(
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = get_project_or_404(db, project_id, user)
+    return AnalysisResultsResponse(
+        results=[
+            {
+                "id": result.id,
+                "provider": result.provider,
+                "created_at": result.created_at.isoformat(),
+                "result": result.result_json,
+            }
+            for result in list_analysis_results(db, project_id=project.id)
+        ]
+    )
 
 
 @router.get("/{project_id}/plans", response_model=TimelinePlansResponse)

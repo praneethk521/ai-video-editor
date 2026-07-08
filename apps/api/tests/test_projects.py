@@ -57,9 +57,20 @@ def test_project_lifecycle_keeps_private_media(client, auth_headers):
     assert analyzed.status_code == 200
     assert len(analyzed.json()["timeline_plan_ids"]) == 2
 
+    analysis = client.get(f"/projects/{project_id}/analysis", headers=auth_headers)
+    assert analysis.status_code == 200
+    assert len(analysis.json()["results"]) == 1
+    analysis_result = analysis.json()["results"][0]
+    assert analysis_result["provider"] == "deterministic-local-metadata-v1"
+    assert analysis_result["result"]["privacy"]["media_bytes_used"] is False
+    assert analysis_result["result"]["summary"]["scene_count"] == 2
+    assert analysis_result["result"]["asset_features"][0]["highlight_score"] > 0.5
+
     plans = client.get(f"/projects/{project_id}/plans", headers=auth_headers)
     assert plans.status_code == 200
     assert {plan["status"] for plan in plans.json()["plans"]} == {"draft"}
+    assert "provider_pending" not in plans.json()["plans"][0]["plan"]["strategy"]["hook"]
+    assert plans.json()["plans"][0]["plan"]["tracks"][0]["clips"][0]["caption"] != "Auto-caption placeholder"
 
     blocked_render = client.post(
         f"/projects/{project_id}/render",

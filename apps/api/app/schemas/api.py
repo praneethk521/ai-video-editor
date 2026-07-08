@@ -55,6 +55,10 @@ class AnalyzeResponse(BaseModel):
     timeline_plan_ids: list[str]
 
 
+class AnalysisResultsResponse(BaseModel):
+    results: list[dict]
+
+
 class TimelinePlanRead(BaseModel):
     id: str
     variant: str

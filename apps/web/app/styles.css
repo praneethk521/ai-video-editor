@@ -227,7 +227,7 @@ p {
 
 .bottomGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-top: 16px;
 }
@@ -253,6 +253,7 @@ p {
 .planList,
 .jobTable,
 .outputList,
+.analysisList,
 .logList {
   display: grid;
   gap: 10px;
@@ -323,12 +324,27 @@ p {
 
 .jobRow,
 .outputRow,
+.analysisMetric,
 .logRow,
 .emptyState {
   min-height: 42px;
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 10px 12px;
+}
+
+.analysisMetric {
+  display: grid;
+  gap: 3px;
+}
+
+.analysisMetric span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.analysisMetric strong {
+  font-size: 15px;
 }
 
 .outputRow {

@@ -28,6 +28,8 @@ Last updated: 2026-07-08
 - Added timeline plan listing, rejection, regeneration, approval, and render gating on approved plans.
 - Added dashboard project console for Drive sync, analysis, plan review, approval, rendering, and outputs.
 - Added ffprobe output validation metadata for rendered video resolution, duration, audio stream, and corruption checks.
+- Added configurable analysis provider selection with privacy-safe scene, audio, subject, and highlight metadata.
+- Added analysis review API and dashboard summary panel.
 
 ## Verification
 
@@ -39,4 +41,5 @@ Last updated: 2026-07-08
 ## Next
 
 - Integrate production AI providers and richer scene/audio/subject metadata into plan generation.
+- Add a real media-analysis provider adapter behind the analysis provider interface.
 - Extend render validation for subtitle presence, black frames, and output delivery targets.

@@ -6,6 +6,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.models.entities import AnalysisResult, MediaAsset, PlanStatus, Project, ProjectStatus, TimelinePlan, utcnow
+from app.services.analysis_providers import get_analysis_provider
 from app.services.malware import require_clean_media_assets
 
 def add_shared_path() -> None:
@@ -30,40 +31,20 @@ def analyze_and_plan(db: Session, *, project_id: str) -> tuple[AnalysisResult, l
         raise ValueError("project has no media assets")
     require_clean_media_assets(assets)
 
-    asset_summaries = [
-        AssetSummary(
-            asset_id=asset.id,
-            duration_seconds=asset.duration_seconds or 3,
-            orientation=asset.orientation,
-            highlight_score=0.8 if asset.mime_type.startswith("video/") else 0.6,
-        )
-        for asset in assets
-    ]
+    analysis = get_analysis_provider().analyze(assets)
     result = AnalysisResult(
         project_id=project_id,
-        provider="deterministic-local-baseline",
-        result_json={
-            "scene_count": len(assets),
-            "faces_detected": "provider_pending",
-            "audio_quality": "provider_pending",
-            "duplicate_clip_detection": "provider_pending",
-            "safety_note": "No private media bytes are included in this metadata record.",
-        },
+        provider=analysis.provider,
+        result_json=analysis.result,
     )
     db.add(result)
 
-    plans = []
-    for variant in ("youtube_16x9", "shorts_9x16"):
-        plan_json = build_timeline_plan(project_id, asset_summaries, variant)
-        plan = TimelinePlan(
-            project_id=project_id,
-            variant=variant,
-            confidence_score=plan_json["confidence_score"],
-            plan_json=plan_json,
-        )
-        db.add(plan)
-        plans.append(plan)
-    return result, plans
+    return result, create_timeline_plans(
+        db,
+        project_id=project_id,
+        analysis_json=analysis.result,
+        variants=["youtube_16x9", "shorts_9x16"],
+    )
 
 
 def list_timeline_plans(db: Session, *, project_id: str) -> list[TimelinePlan]:
@@ -105,19 +86,39 @@ def regenerate_timeline_plans(db: Session, *, project_id: str, variants: list[st
     if not requested:
         raise ValueError("no supported variants requested")
 
-    asset_summaries = [
-        AssetSummary(
-            asset_id=asset.id,
-            duration_seconds=asset.duration_seconds or 3,
-            orientation=asset.orientation,
-            highlight_score=0.8 if asset.mime_type.startswith("video/") else 0.6,
-        )
-        for asset in assets
-    ]
+    analysis_result = latest_analysis_result(db, project_id=project_id)
+    if analysis_result is None:
+        analysis = get_analysis_provider().analyze(assets)
+        analysis_result = AnalysisResult(project_id=project_id, provider=analysis.provider, result_json=analysis.result)
+        db.add(analysis_result)
+
+    plans = create_timeline_plans(
+        db,
+        project_id=project_id,
+        analysis_json=analysis_result.result_json,
+        variants=requested,
+        notes=notes,
+    )
+    project = db.get(Project, project_id)
+    if project is not None:
+        project.status = ProjectStatus.planned
+    return plans
+
+
+def create_timeline_plans(
+    db: Session,
+    *,
+    project_id: str,
+    analysis_json: dict,
+    variants: list[str],
+    notes: str | None = None,
+) -> list[TimelinePlan]:
+    asset_summaries = asset_summaries_from_analysis(analysis_json)
     plans = []
-    for variant in requested:
+    for variant in variants:
         plan_json = build_timeline_plan(project_id, asset_summaries, variant)
-        plan_json["strategy"]["review_notes"] = notes or "Regenerated from reviewer request."
+        if notes is not None:
+            plan_json["strategy"]["review_notes"] = notes or "Regenerated from reviewer request."
         plan = TimelinePlan(
             project_id=project_id,
             variant=variant,
@@ -127,10 +128,46 @@ def regenerate_timeline_plans(db: Session, *, project_id: str, variants: list[st
         )
         db.add(plan)
         plans.append(plan)
-    project = db.get(Project, project_id)
-    if project is not None:
-        project.status = ProjectStatus.planned
     return plans
+
+
+def latest_analysis_result(db: Session, *, project_id: str) -> AnalysisResult | None:
+    return (
+        db.query(AnalysisResult)
+        .filter(AnalysisResult.project_id == project_id)
+        .order_by(AnalysisResult.created_at.desc())
+        .first()
+    )
+
+
+def list_analysis_results(db: Session, *, project_id: str) -> list[AnalysisResult]:
+    return (
+        db.query(AnalysisResult)
+        .filter(AnalysisResult.project_id == project_id)
+        .order_by(AnalysisResult.created_at.desc())
+        .all()
+    )
+
+
+def asset_summaries_from_analysis(analysis_json: dict) -> list[AssetSummary]:
+    features = analysis_json.get("asset_features") or []
+    summaries = []
+    for feature in features:
+        subject = feature.get("subject") or {}
+        audio = feature.get("audio") or {}
+        summaries.append(
+            AssetSummary(
+                asset_id=feature["asset_id"],
+                duration_seconds=feature.get("duration_seconds") or 3,
+                orientation=feature.get("orientation") or "unknown",
+                highlight_score=feature.get("highlight_score") or 0.5,
+                scene_count=feature.get("scene_count") or 1,
+                subject_presence=subject.get("presence") or "unknown",
+                audio_quality=audio.get("quality") or "unknown",
+                tags=tuple(feature.get("tags") or ()),
+            )
+        )
+    return summaries
 
 
 def get_project_plan(db: Session, *, project_id: str, plan_id: str) -> TimelinePlan:

@@ -36,7 +36,8 @@ The current executable slice supports:
 - Validate and register uploaded or Drive media assets.
 - Traverse connected Google Drive folders and skip duplicate media by checksum.
 - Stream private Drive media through ClamAV before analysis/rendering.
-- Generate deterministic analysis metadata and timeline plans.
+- Generate privacy-safe scene, audio, subject, and highlight metadata through a configurable analysis provider.
+- Generate deterministic timeline plans from analysis metadata.
 - Review, reject, regenerate, and approve timeline plans before rendering.
 - Use the dashboard project console to run the private workflow and review plans.
 - Queue render jobs for landscape and vertical outputs.

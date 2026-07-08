@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     google_drive_scopes: str = "https://www.googleapis.com/auth/drive.readonly"
     token_encryption_key: str = Field(default="", repr=False)
     malware_scanner_backend: str = "clamav"
+    analysis_provider: str = "deterministic_local"
     clamav_host: str = "clamav"
     clamav_port: int = 3310
     max_upload_bytes: int = 2_147_483_648

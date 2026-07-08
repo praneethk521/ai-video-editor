@@ -1,0 +1,181 @@
+from __future__ import annotations
+
+from collections import Counter
+from dataclasses import dataclass
+from statistics import mean
+from typing import Protocol
+
+from app.core.config import settings
+from app.models.entities import MediaAsset
+
+
+@dataclass(frozen=True)
+class ProjectAnalysis:
+    provider: str
+    result: dict
+
+
+class AnalysisProvider(Protocol):
+    provider_name: str
+
+    def analyze(self, assets: list[MediaAsset]) -> ProjectAnalysis:
+        raise NotImplementedError
+
+
+class DeterministicLocalAnalysisProvider:
+    provider_name = "deterministic-local-metadata-v1"
+
+    def analyze(self, assets: list[MediaAsset]) -> ProjectAnalysis:
+        features = [self._asset_feature(asset) for asset in assets]
+        orientations = Counter(feature["orientation"] for feature in features)
+        checksums = [asset.content_checksum for asset in assets if asset.content_checksum]
+        duplicate_checksum_count = len(checksums) - len(set(checksums))
+        audio_scores = [feature["audio"]["score"] for feature in features if feature["audio"]["score"] is not None]
+        highlight_scores = [feature["highlight_score"] for feature in features]
+        subject_count = sum(1 for feature in features if feature["subject"]["presence"] != "unknown")
+
+        return ProjectAnalysis(
+            provider=self.provider_name,
+            result={
+                "schema_version": 1,
+                "provider": self.provider_name,
+                "privacy": {
+                    "media_bytes_used": False,
+                    "inputs": ["asset metadata", "filename", "duration", "orientation", "mime_type", "size", "checksum"],
+                },
+                "summary": {
+                    "asset_count": len(assets),
+                    "scene_count": sum(feature["scene_count"] for feature in features),
+                    "primary_orientation": orientations.most_common(1)[0][0] if orientations else "unknown",
+                    "average_highlight_score": round(mean(highlight_scores), 3) if highlight_scores else 0,
+                    "subjects_detected": subject_count,
+                    "audio_quality": self._audio_quality(mean(audio_scores)) if audio_scores else "unknown",
+                    "duplicate_clip_detection": "duplicates_found" if duplicate_checksum_count else "no_duplicates_found",
+                },
+                "asset_features": features,
+                "safety_note": "No private media bytes are included in this analysis record.",
+            },
+        )
+
+    def _asset_feature(self, asset: MediaAsset) -> dict:
+        duration = asset.duration_seconds or 0
+        scene_count = self._scene_count(asset)
+        tags = self._tags(asset)
+        subject = self._subject(asset, tags)
+        audio_score = self._audio_score(asset)
+        visual = self._visual_quality(asset, duration)
+        highlight_score = self._highlight_score(asset, scene_count, subject, audio_score, tags)
+
+        return {
+            "asset_id": asset.id,
+            "mime_type": asset.mime_type,
+            "duration_seconds": round(duration, 2),
+            "orientation": asset.orientation,
+            "scene_count": scene_count,
+            "highlight_score": highlight_score,
+            "tags": tags,
+            "subject": subject,
+            "audio": {
+                "quality": self._audio_quality(audio_score),
+                "score": audio_score,
+                "recommended_lufs": -14 if asset.mime_type.startswith("video/") else -16,
+            },
+            "visual": visual,
+        }
+
+    @staticmethod
+    def _scene_count(asset: MediaAsset) -> int:
+        if asset.mime_type.startswith("image/"):
+            return 1
+        if asset.mime_type.startswith("audio/"):
+            return 0
+        duration = asset.duration_seconds or 3
+        return max(1, min(60, round(duration / 6)))
+
+    @staticmethod
+    def _tags(asset: MediaAsset) -> list[str]:
+        name = f"{asset.original_filename} {asset.sanitized_filename}".lower()
+        keyword_tags = {
+            "intro": ["intro", "hook"],
+            "hero": ["hero", "highlight"],
+            "interview": ["interview", "talking_head"],
+            "demo": ["demo", "product"],
+            "screen": ["screen_recording", "tutorial"],
+            "broll": ["b_roll"],
+            "voice": ["voiceover"],
+            "music": ["music"],
+        }
+        tags: list[str] = []
+        for keyword, mapped_tags in keyword_tags.items():
+            if keyword in name:
+                tags.extend(mapped_tags)
+        if asset.mime_type.startswith("image/"):
+            tags.append("still")
+        if asset.orientation == "portrait":
+            tags.append("vertical_ready")
+        if not tags:
+            tags.append("general")
+        return sorted(set(tags))
+
+    @staticmethod
+    def _subject(asset: MediaAsset, tags: list[str]) -> dict:
+        if "talking_head" in tags or "voiceover" in tags:
+            return {"presence": "likely_human", "confidence": 0.72, "framing": "face_subject"}
+        if asset.mime_type.startswith("image/"):
+            return {"presence": "unknown", "confidence": 0.35, "framing": "center"}
+        if asset.orientation == "portrait":
+            return {"presence": "possible_human", "confidence": 0.52, "framing": "face_subject"}
+        return {"presence": "unknown", "confidence": 0.4, "framing": "center"}
+
+    @staticmethod
+    def _audio_score(asset: MediaAsset) -> float | None:
+        if asset.mime_type.startswith("image/"):
+            return None
+        duration = max(asset.duration_seconds or 1, 1)
+        bytes_per_second = asset.size_bytes / duration
+        if asset.mime_type.startswith("audio/"):
+            score = min(0.95, max(0.45, bytes_per_second / 18000))
+        else:
+            score = min(0.95, max(0.4, bytes_per_second / 90000))
+        return round(score, 3)
+
+    @staticmethod
+    def _audio_quality(score: float | None) -> str:
+        if score is None:
+            return "unknown"
+        if score >= 0.78:
+            return "good"
+        if score >= 0.58:
+            return "usable"
+        return "needs_review"
+
+    @staticmethod
+    def _visual_quality(asset: MediaAsset, duration: float) -> dict:
+        if asset.mime_type.startswith("audio/"):
+            return {"quality": "not_applicable", "blur_risk": "not_applicable", "motion": "none"}
+        if asset.size_bytes < 200_000 and duration > 8:
+            return {"quality": "needs_review", "blur_risk": "medium", "motion": "unknown"}
+        return {"quality": "usable", "blur_risk": "low", "motion": "unknown"}
+
+    @staticmethod
+    def _highlight_score(asset: MediaAsset, scene_count: int, subject: dict, audio_score: float | None, tags: list[str]) -> float:
+        score = 0.5
+        if asset.mime_type.startswith("video/"):
+            score += 0.12
+        if subject["presence"] != "unknown":
+            score += 0.1
+        if scene_count >= 3:
+            score += 0.08
+        if audio_score is not None and audio_score >= 0.58:
+            score += 0.07
+        if {"hero", "highlight", "hook"} & set(tags):
+            score += 0.1
+        if asset.orientation == "portrait":
+            score += 0.03
+        return round(min(score, 0.97), 3)
+
+
+def get_analysis_provider() -> AnalysisProvider:
+    if settings.analysis_provider in {"deterministic_local", "deterministic-local-metadata-v1"}:
+        return DeterministicLocalAnalysisProvider()
+    raise ValueError(f"unsupported analysis provider: {settings.analysis_provider}")
