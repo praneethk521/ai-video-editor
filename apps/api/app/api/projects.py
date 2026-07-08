@@ -26,6 +26,7 @@ from app.schemas.api import (
     TimelinePlansResponse,
 )
 from app.services.audit import audit
+from app.services.analysis_providers import AnalysisProviderError
 from app.services.media import complete_drive_oauth, create_drive_connection, create_media_asset, sync_drive_folder
 from app.services.planning import (
     analyze_and_plan,
@@ -188,6 +189,11 @@ def analyze(
     project = get_project_or_404(db, project_id, user)
     try:
         analysis, plans = analyze_and_plan(db, project_id=project.id)
+    except AnalysisProviderError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"message": str(exc), "details": exc.details},
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     project.status = ProjectStatus.planned

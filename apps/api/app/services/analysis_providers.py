@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from statistics import mean
 import time
 from typing import Protocol
@@ -29,6 +30,15 @@ class AnalysisProviderError(ValueError):
     def __init__(self, message: str, details: dict):
         super().__init__(message)
         self.details = details
+
+
+@dataclass
+class ProviderCircuitState:
+    failure_count: int = 0
+    opened_at: datetime | None = None
+
+
+_external_circuit = ProviderCircuitState()
 
 
 class AnalysisProvider(Protocol):
@@ -219,14 +229,14 @@ class ExternalHTTPAnalysisProvider:
             )
             return ProviderHealth(
                 provider=self.provider_name,
-                status="healthy" if response.status_code < 500 else "unhealthy",
-                details={"status_code": response.status_code},
+                status="healthy" if response.status_code < 500 and not self._circuit_is_open() else "unhealthy",
+                details={"status_code": response.status_code, "circuit": self._circuit_details()},
             )
         except httpx.HTTPError as exc:
             return ProviderHealth(
                 provider=self.provider_name,
                 status="unhealthy",
-                details={"error": exc.__class__.__name__},
+                details={"error": exc.__class__.__name__, "circuit": self._circuit_details()},
             )
 
     def analyze(self, assets: list[MediaAsset]) -> ProjectAnalysis:
@@ -265,6 +275,12 @@ class ExternalHTTPAnalysisProvider:
         return ProjectAnalysis(provider=result["provider"], result=result)
 
     def _post_with_retries(self, payload: dict) -> httpx.Response:
+        if self._circuit_is_open():
+            raise AnalysisProviderError(
+                "analysis provider circuit is open",
+                {"provider": self.provider_name, "circuit": self._circuit_details()},
+            )
+
         attempts = max(1, settings.analysis_provider_max_attempts)
         last_error: Exception | None = None
         for attempt in range(1, attempts + 1):
@@ -276,11 +292,13 @@ class ExternalHTTPAnalysisProvider:
                     timeout=settings.analysis_provider_timeout_seconds,
                 )
                 response.raise_for_status()
+                self._record_success()
                 return response
             except httpx.HTTPError as exc:
                 last_error = exc
                 if attempt < attempts:
                     time.sleep(settings.analysis_provider_retry_backoff_seconds)
+        self._record_failure()
         raise AnalysisProviderError(
             "analysis provider unavailable",
             {
@@ -289,6 +307,36 @@ class ExternalHTTPAnalysisProvider:
                 "error": last_error.__class__.__name__ if last_error else "unknown",
             },
         )
+
+    @staticmethod
+    def _record_success() -> None:
+        _external_circuit.failure_count = 0
+        _external_circuit.opened_at = None
+
+    @staticmethod
+    def _record_failure() -> None:
+        _external_circuit.failure_count += 1
+        if _external_circuit.failure_count >= settings.analysis_provider_circuit_failure_threshold:
+            _external_circuit.opened_at = datetime.now(timezone.utc)
+
+    @staticmethod
+    def _circuit_is_open() -> bool:
+        if _external_circuit.opened_at is None:
+            return False
+        reset_at = _external_circuit.opened_at + timedelta(seconds=settings.analysis_provider_circuit_reset_seconds)
+        if datetime.now(timezone.utc) >= reset_at:
+            _external_circuit.failure_count = 0
+            _external_circuit.opened_at = None
+            return False
+        return True
+
+    @staticmethod
+    def _circuit_details() -> dict:
+        return {
+            "failure_count": _external_circuit.failure_count,
+            "open": _external_circuit.opened_at is not None,
+            "opened_at": _external_circuit.opened_at.isoformat() if _external_circuit.opened_at else None,
+        }
 
     @staticmethod
     def _headers() -> dict:

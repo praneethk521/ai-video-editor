@@ -32,15 +32,16 @@ Last updated: 2026-07-08
 - Added analysis review API and dashboard summary panel.
 - Added external HTTP analysis provider adapter with opt-in private locator sharing.
 - Added analysis provider health checks, transient retry/backoff, and structured provider failures.
+- Added lightweight circuit-breaker behavior for repeated external analysis provider failures.
 
 ## Verification
 
-- API tests: passed locally (`11 passed`).
+- API tests: passed locally (`12 passed`).
 - Worker tests: passed locally (`3 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Add structured analysis provider observability metrics and circuit-breaker behavior.
+- Add structured analysis provider observability metrics.
 - Extend render validation for subtitle presence, black frames, and output delivery targets.

@@ -466,6 +466,58 @@ def test_external_http_analysis_provider_uses_sanitized_metadata(client, auth_he
     assert plans.json()["plans"][0]["plan"]["tracks"][0]["clips"][0]["effect"] in {"match_cut", "subject_push", "subtle_zoom"}
 
 
+def test_external_http_analysis_provider_circuit_breaker(client, auth_headers, monkeypatch):
+    monkeypatch.setattr(settings, "analysis_provider", "external_http")
+    monkeypatch.setattr(settings, "analysis_provider_url", "https://analysis.internal/analyze")
+    monkeypatch.setattr(settings, "analysis_provider_max_attempts", 1)
+    monkeypatch.setattr(settings, "analysis_provider_retry_backoff_seconds", 0)
+    monkeypatch.setattr(settings, "analysis_provider_circuit_failure_threshold", 1)
+    monkeypatch.setattr(settings, "analysis_provider_circuit_reset_seconds", 60)
+    attempts = []
+
+    def fake_post(url, headers, json, timeout):
+        attempts.append(url)
+        raise httpx.ConnectError("provider unavailable")
+
+    monkeypatch.setattr("app.services.analysis_providers.httpx.post", fake_post)
+
+    project = client.post("/projects", json={"name": "Circuit Breaker"}, headers=auth_headers).json()
+    ingested = client.post(
+        f"/projects/{project['id']}/ingest",
+        json={
+            "assets": [
+                {
+                    "filename": "clip.mp4",
+                    "mime_type": "video/mp4",
+                    "size_bytes": 900000,
+                    "duration_seconds": 9,
+                    "orientation": "landscape",
+                    "private_locator": "drive://private-folder-id/clip",
+                }
+            ]
+        },
+        headers=auth_headers,
+    )
+    media_asset_id = ingested.json()["accepted_asset_ids"][0]
+    scan = client.post(
+        f"/internal/media-assets/{media_asset_id}/malware-scan",
+        json={"status": "clean", "scanner": "unit-test", "details": {}},
+        headers=auth_headers,
+    )
+    assert scan.status_code == 204
+
+    first = client.post(f"/projects/{project['id']}/analyze", headers=auth_headers)
+    assert first.status_code == 422
+    assert first.json()["detail"]["message"] == "analysis provider unavailable"
+    assert attempts == ["https://analysis.internal/analyze"]
+
+    second = client.post(f"/projects/{project['id']}/analyze", headers=auth_headers)
+    assert second.status_code == 422
+    assert second.json()["detail"]["message"] == "analysis provider circuit is open"
+    assert second.json()["detail"]["details"]["circuit"]["open"] is True
+    assert attempts == ["https://analysis.internal/analyze"]
+
+
 def test_clamav_scan_downloads_private_drive_asset(client, auth_headers, monkeypatch):
     monkeypatch.setattr(settings, "google_client_id", "client-id")
     monkeypatch.setattr(settings, "google_client_secret", "client-secret")

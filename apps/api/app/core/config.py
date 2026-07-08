@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     analysis_provider_timeout_seconds: int = 60
     analysis_provider_max_attempts: int = 2
     analysis_provider_retry_backoff_seconds: float = 0.25
+    analysis_provider_circuit_failure_threshold: int = 3
+    analysis_provider_circuit_reset_seconds: int = 60
     analysis_provider_include_private_locator: bool = False
     clamav_host: str = "clamav"
     clamav_port: int = 3310
