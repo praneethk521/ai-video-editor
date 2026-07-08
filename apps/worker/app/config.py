@@ -12,6 +12,7 @@ class WorkerSettings:
     max_job_seconds: int = int(os.getenv("MAX_RENDER_JOB_SECONDS", "1800"))
     temp_root: str = os.getenv("VIDEO_TEMP_ROOT", "/tmp/ai-video-editor")
     ffmpeg_path: str = os.getenv("FFMPEG_PATH", "ffmpeg")
+    ffprobe_path: str = os.getenv("FFPROBE_PATH", "ffprobe")
     render_dry_run: bool = os.getenv("RENDER_DRY_RUN", "true").lower() in {"1", "true", "yes"}
 
 

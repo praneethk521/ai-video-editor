@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-07-07
+Last updated: 2026-07-08
 
 ## Completed
 
@@ -27,15 +27,16 @@ Last updated: 2026-07-07
 - Added ClamAV-backed private Drive media scanning through authenticated internal scan endpoints.
 - Added timeline plan listing, rejection, regeneration, approval, and render gating on approved plans.
 - Added dashboard project console for Drive sync, analysis, plan review, approval, rendering, and outputs.
+- Added ffprobe output validation metadata for rendered video resolution, duration, audio stream, and corruption checks.
 
 ## Verification
 
 - API tests: passed locally (`9 passed`).
-- Worker tests: passed locally (`2 passed`).
+- Worker tests: passed locally (`3 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Integrate production AI providers and richer scene/audio/subject metadata.
-- Add output validation using ffprobe.
+- Integrate production AI providers and richer scene/audio/subject metadata into plan generation.
+- Extend render validation for subtitle presence, black frames, and output delivery targets.

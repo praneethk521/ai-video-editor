@@ -114,6 +114,7 @@ def complete_render_job(db: Session, *, render_job_id: str, result) -> OutputVid
             duration_seconds=result.duration_seconds,
             file_size_bytes=result.file_size_bytes,
             upload_package_json=result.upload_package,
+            validation_json=result.validation,
         )
         db.add(output)
     else:
@@ -124,6 +125,7 @@ def complete_render_job(db: Session, *, render_job_id: str, result) -> OutputVid
         output.duration_seconds = result.duration_seconds
         output.file_size_bytes = result.file_size_bytes
         output.upload_package_json = result.upload_package
+        output.validation_json = result.validation
 
     job.status = RenderStatus.succeeded
     job.error_message = None

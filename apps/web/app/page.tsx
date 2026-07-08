@@ -65,6 +65,9 @@ type OutputVideo = {
   height: number;
   duration_seconds: number;
   private_locator: string;
+  validation?: {
+    status?: string;
+  };
 };
 
 type LogEntry = {
@@ -419,6 +422,9 @@ export default function Page() {
                   <strong>{variantLabel(output.variant)}</strong>
                   <span>
                     {output.width}x{output.height} · {output.duration_seconds}s
+                  </span>
+                  <span className={`pill ${output.validation?.status ?? "pending"}`}>
+                    {output.validation?.status ?? "pending validation"}
                   </span>
                 </div>
               ))}

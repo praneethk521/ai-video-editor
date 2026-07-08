@@ -107,7 +107,12 @@ def render_job_complete(
         project_id=output.project_id,
         action="render.job.completed",
         correlation_id=request.state.correlation_id,
-        metadata={"render_job_id": render_job_id, "variant": output.variant, "private_locator": output.private_locator},
+        metadata={
+            "render_job_id": render_job_id,
+            "variant": output.variant,
+            "private_locator": output.private_locator,
+            "validation_status": (output.validation_json or {}).get("status"),
+        },
     )
     db.commit()
     return None

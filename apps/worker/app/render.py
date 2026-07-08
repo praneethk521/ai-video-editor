@@ -6,6 +6,7 @@ from pathlib import Path
 
 from app.config import settings
 from app.timeline import validate_timeline
+from app.validation import skipped_validation, validate_output_file
 
 
 @dataclass(frozen=True)
@@ -16,6 +17,7 @@ class RenderResult:
     height: int
     duration_seconds: float
     upload_package: dict
+    validation: dict
 
 
 class VideoRenderer:
@@ -34,8 +36,15 @@ class VideoRenderer:
 
         if dry_run:
             output_path.write_bytes(b"private placeholder mp4 for local integration tests\n")
+            validation = skipped_validation("dry_run")
         else:
             self._render_placeholder_with_ffmpeg(output_path, export, duration)
+            validation = validate_output_file(
+                output_path,
+                expected_width=export["width"],
+                expected_height=export["height"],
+                expected_duration_seconds=duration,
+            )
 
         return RenderResult(
             variant=variant,
@@ -43,6 +52,7 @@ class VideoRenderer:
             width=export["width"],
             height=export["height"],
             duration_seconds=duration,
+            validation=validation,
             upload_package={
                 "title_suggestions": plan.get("strategy", {}).get("title_ideas", []),
                 "description": plan.get("strategy", {}).get("description", ""),
@@ -89,4 +99,3 @@ class VideoRenderer:
         for index, clip in enumerate(plan["tracks"][0]["clips"], start=1):
             chapters.append({"time": clip["timeline_start"], "title": f"Moment {index}"})
         return chapters
-

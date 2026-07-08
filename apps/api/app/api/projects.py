@@ -359,6 +359,7 @@ def outputs(
                 "duration_seconds": row.duration_seconds,
                 "private_locator": row.private_locator,
                 "upload_package": row.upload_package_json,
+                "validation": row.validation_json,
             }
             for row in rows
         ]

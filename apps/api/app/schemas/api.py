@@ -104,6 +104,7 @@ class WorkerRenderCompleteRequest(BaseModel):
     duration_seconds: float = Field(ge=0)
     file_size_bytes: int = Field(ge=0)
     upload_package: dict
+    validation: dict = Field(default_factory=dict)
 
 
 class WorkerRenderFailedRequest(BaseModel):

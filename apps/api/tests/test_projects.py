@@ -100,6 +100,7 @@ def test_project_lifecycle_keeps_private_media(client, auth_headers):
                 "duration_seconds": 12,
                 "file_size_bytes": 2048,
                 "upload_package": {"manual_upload_only": True},
+                "validation": {"status": "passed", "checks": {"ffprobe": True}},
             },
             headers=auth_headers,
         )
@@ -114,6 +115,7 @@ def test_project_lifecycle_keeps_private_media(client, auth_headers):
     assert outputs.status_code == 200
     assert len(outputs.json()["outputs"]) == 2
     assert all(output["upload_package"]["manual_upload_only"] is True for output in outputs.json()["outputs"])
+    assert {output["validation"]["status"] for output in outputs.json()["outputs"]} == {"passed"}
 
 
 def test_rejects_public_media_urls_and_path_traversal(client, auth_headers):

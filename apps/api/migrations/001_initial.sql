@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS output_videos (
   duration_seconds DOUBLE PRECISION NOT NULL,
   file_size_bytes INTEGER NOT NULL,
   upload_package_json JSONB NOT NULL DEFAULT '{}',
+  validation_json JSONB NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

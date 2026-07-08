@@ -53,4 +53,5 @@ def render_timeline(plan: dict, dry_run: bool = True) -> dict:
         "duration_seconds": result.duration_seconds,
         "file_size_bytes": output_path.stat().st_size,
         "upload_package": result.upload_package,
+        "validation": result.validation,
     }

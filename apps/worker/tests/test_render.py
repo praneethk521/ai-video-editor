@@ -4,6 +4,7 @@ from pathlib import Path
 
 from app.jobs import render_timeline
 from app.render import VideoRenderer
+from app.validation import summarize_ffprobe
 
 
 def test_renderer_validates_and_creates_private_output(tmp_path: Path):
@@ -39,6 +40,7 @@ def test_renderer_validates_and_creates_private_output(tmp_path: Path):
     assert result.width == 1080
     assert Path(result.output_path).exists()
     assert result.upload_package["manual_upload_only"] is True
+    assert result.validation["status"] == "skipped"
 
 
 def test_render_timeline_returns_private_output_metadata():
@@ -68,3 +70,26 @@ def test_render_timeline_returns_private_output_metadata():
     assert result["private_locator"] == "file://private/project-1/youtube_16x9.mp4"
     assert result["file_size_bytes"] > 0
     assert result["upload_package"]["manual_upload_only"] is True
+    assert result["validation"]["status"] == "skipped"
+
+
+def test_summarizes_ffprobe_output():
+    summary = summarize_ffprobe(
+        {
+            "streams": [
+                {"codec_type": "video", "width": 1920, "height": 1080},
+                {"codec_type": "audio"},
+            ],
+            "format": {"duration": "2.560000", "format_name": "mov,mp4,m4a,3gp,3g2,mj2", "size": "4096"},
+        }
+    )
+
+    assert summary == {
+        "has_video": True,
+        "has_audio": True,
+        "width": 1920,
+        "height": 1080,
+        "duration_seconds": 2.56,
+        "container": "mov,mp4,m4a,3gp,3g2,mj2",
+        "size_bytes": 4096,
+    }

@@ -152,6 +152,7 @@ class OutputVideo(Base):
     duration_seconds: Mapped[float] = mapped_column(Float)
     file_size_bytes: Mapped[int] = mapped_column(Integer)
     upload_package_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    validation_json: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

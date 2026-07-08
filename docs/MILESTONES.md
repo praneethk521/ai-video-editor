@@ -34,11 +34,12 @@ Status: In progress
 
 ## M3 - Rendering and Review
 
-Status: Planned
+Status: In progress
 
 - FFmpeg/Remotion production renderer.
 - Captions, transitions, audio normalization, vertical subject crop.
-- Output validation for resolution, duration, audio, subtitles, black frames, and corruption.
+- Output validation for resolution, duration, audio stream, and corruption.
+- Subtitle and black-frame validation.
 - Private Drive/S3 output delivery.
 
 ## M4 - Production Hardening
