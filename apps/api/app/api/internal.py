@@ -7,7 +7,7 @@ from app.core.security import CurrentUser, get_current_user
 from app.db.session import get_db
 from app.schemas.api import MalwareScanResultRequest, WorkerRenderCompleteRequest, WorkerRenderFailedRequest
 from app.services.audit import audit
-from app.services.analysis_providers import get_analysis_provider
+from app.services.analysis_providers import get_analysis_provider, get_analysis_provider_metrics
 from app.services.malware import record_malware_scan_result, scan_media_asset
 from app.services.rendering import complete_render_job, fail_render_job, mark_render_job_running
 
@@ -31,6 +31,25 @@ def analysis_provider_health(
     )
     db.commit()
     return {"provider": health.provider, "status": health.status, "details": health.details}
+
+
+@router.get("/analysis-provider/metrics")
+def analysis_provider_metrics(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    metrics = get_analysis_provider_metrics()
+    audit(
+        db,
+        user_id=user.id,
+        project_id=None,
+        action="analysis.provider.metrics",
+        correlation_id=request.state.correlation_id,
+        metadata={"provider_count": len(metrics["providers"])},
+    )
+    db.commit()
+    return metrics
 
 
 @router.post("/render-jobs/{render_job_id}/running", status_code=status.HTTP_204_NO_CONTENT)

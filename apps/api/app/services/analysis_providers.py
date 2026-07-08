@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from statistics import mean
@@ -38,7 +39,22 @@ class ProviderCircuitState:
     opened_at: datetime | None = None
 
 
+@dataclass
+class ProviderMetrics:
+    analyze_requests: int = 0
+    analyze_successes: int = 0
+    analyze_failures: int = 0
+    retry_attempts: int = 0
+    circuit_open_events: int = 0
+    health_checks: int = 0
+    last_status: str = "never"
+    last_error: str | None = None
+    last_duration_ms: float = 0
+    last_observed_at: str | None = None
+
+
 _external_circuit = ProviderCircuitState()
+_provider_metrics: dict[str, ProviderMetrics] = {}
 
 
 class AnalysisProvider(Protocol):
@@ -55,6 +71,7 @@ class DeterministicLocalAnalysisProvider:
     provider_name = "deterministic-local-metadata-v1"
 
     def health(self) -> ProviderHealth:
+        _record_health_check(self.provider_name, "healthy")
         return ProviderHealth(
             provider=self.provider_name,
             status="healthy",
@@ -62,6 +79,7 @@ class DeterministicLocalAnalysisProvider:
         )
 
     def analyze(self, assets: list[MediaAsset]) -> ProjectAnalysis:
+        started_at = time.monotonic()
         features = [self._asset_feature(asset) for asset in assets]
         orientations = Counter(feature["orientation"] for feature in features)
         checksums = [asset.content_checksum for asset in assets if asset.content_checksum]
@@ -70,7 +88,7 @@ class DeterministicLocalAnalysisProvider:
         highlight_scores = [feature["highlight_score"] for feature in features]
         subject_count = sum(1 for feature in features if feature["subject"]["presence"] != "unknown")
 
-        return ProjectAnalysis(
+        analysis = ProjectAnalysis(
             provider=self.provider_name,
             result={
                 "schema_version": 1,
@@ -92,6 +110,8 @@ class DeterministicLocalAnalysisProvider:
                 "safety_note": "No private media bytes are included in this analysis record.",
             },
         )
+        _record_analysis_result(self.provider_name, "success", started_at)
+        return analysis
 
     def _asset_feature(self, asset: MediaAsset) -> dict:
         duration = asset.duration_seconds or 0
@@ -216,6 +236,7 @@ class ExternalHTTPAnalysisProvider:
 
     def health(self) -> ProviderHealth:
         if not settings.analysis_provider_url:
+            _record_health_check(self.provider_name, "unhealthy", error="missing_provider_url")
             return ProviderHealth(
                 provider=self.provider_name,
                 status="unhealthy",
@@ -227,12 +248,15 @@ class ExternalHTTPAnalysisProvider:
                 headers=self._headers(),
                 timeout=settings.analysis_provider_timeout_seconds,
             )
+            status = "healthy" if response.status_code < 500 and not self._circuit_is_open() else "unhealthy"
+            _record_health_check(self.provider_name, status)
             return ProviderHealth(
                 provider=self.provider_name,
-                status="healthy" if response.status_code < 500 and not self._circuit_is_open() else "unhealthy",
+                status=status,
                 details={"status_code": response.status_code, "circuit": self._circuit_details()},
             )
         except httpx.HTTPError as exc:
+            _record_health_check(self.provider_name, "unhealthy", error=exc.__class__.__name__)
             return ProviderHealth(
                 provider=self.provider_name,
                 status="unhealthy",
@@ -240,42 +264,50 @@ class ExternalHTTPAnalysisProvider:
             )
 
     def analyze(self, assets: list[MediaAsset]) -> ProjectAnalysis:
+        started_at = time.monotonic()
         if not settings.analysis_provider_url:
+            _record_analysis_result(self.provider_name, "failure", started_at, error="missing_provider_url")
             raise AnalysisProviderError(
                 "analysis provider is not configured",
                 {"provider": self.provider_name, "missing": "ANALYSIS_PROVIDER_URL"},
             )
 
         fallback = DeterministicLocalAnalysisProvider().analyze(assets).result
-        response = self._post_with_retries(
-            {
-                "schema_version": 1,
-                "privacy": {
-                    "media_bytes_included": False,
-                    "private_locator_included": settings.analysis_provider_include_private_locator,
-                },
-                "assets": [self._asset_payload(asset) for asset in assets],
-            }
-        )
-        payload = response.json()
-        if not isinstance(payload, dict):
-            raise AnalysisProviderError(
-                "analysis provider returned an invalid response",
-                {"provider": self.provider_name, "reason": "response was not a JSON object"},
+        try:
+            response = self._post_with_retries(
+                {
+                    "schema_version": 1,
+                    "privacy": {
+                        "media_bytes_included": False,
+                        "private_locator_included": settings.analysis_provider_include_private_locator,
+                    },
+                    "assets": [self._asset_payload(asset) for asset in assets],
+                }
             )
+            payload = response.json()
+            if not isinstance(payload, dict):
+                raise AnalysisProviderError(
+                    "analysis provider returned an invalid response",
+                    {"provider": self.provider_name, "reason": "response was not a JSON object"},
+                )
 
-        result = {**fallback, **payload}
-        result["provider"] = payload.get("provider") or self.provider_name
-        result["privacy"] = {
-            **fallback.get("privacy", {}),
-            **payload.get("privacy", {}),
-            "media_bytes_used": False,
-            "private_locator_included": settings.analysis_provider_include_private_locator,
-        }
-        return ProjectAnalysis(provider=result["provider"], result=result)
+            result = {**fallback, **payload}
+            result["provider"] = payload.get("provider") or self.provider_name
+            result["privacy"] = {
+                **fallback.get("privacy", {}),
+                **payload.get("privacy", {}),
+                "media_bytes_used": False,
+                "private_locator_included": settings.analysis_provider_include_private_locator,
+            }
+            _record_analysis_result(self.provider_name, "success", started_at)
+            return ProjectAnalysis(provider=result["provider"], result=result)
+        except AnalysisProviderError as exc:
+            _record_analysis_result(self.provider_name, "failure", started_at, error=str(exc))
+            raise
 
     def _post_with_retries(self, payload: dict) -> httpx.Response:
         if self._circuit_is_open():
+            _record_circuit_open(self.provider_name)
             raise AnalysisProviderError(
                 "analysis provider circuit is open",
                 {"provider": self.provider_name, "circuit": self._circuit_details()},
@@ -297,6 +329,7 @@ class ExternalHTTPAnalysisProvider:
             except httpx.HTTPError as exc:
                 last_error = exc
                 if attempt < attempts:
+                    _record_retry(self.provider_name)
                     time.sleep(settings.analysis_provider_retry_backoff_seconds)
         self._record_failure()
         raise AnalysisProviderError(
@@ -318,6 +351,7 @@ class ExternalHTTPAnalysisProvider:
         _external_circuit.failure_count += 1
         if _external_circuit.failure_count >= settings.analysis_provider_circuit_failure_threshold:
             _external_circuit.opened_at = datetime.now(timezone.utc)
+            _record_circuit_open(ExternalHTTPAnalysisProvider.provider_name)
 
     @staticmethod
     def _circuit_is_open() -> bool:
@@ -368,3 +402,50 @@ def get_analysis_provider() -> AnalysisProvider:
     if settings.analysis_provider in {"external_http", "external-http-analysis-v1"}:
         return ExternalHTTPAnalysisProvider()
     raise ValueError(f"unsupported analysis provider: {settings.analysis_provider}")
+
+
+def get_analysis_provider_metrics() -> dict:
+    return {"providers": {provider: deepcopy(metrics.__dict__) for provider, metrics in _provider_metrics.items()}}
+
+
+def _metrics_for(provider: str) -> ProviderMetrics:
+    if provider not in _provider_metrics:
+        _provider_metrics[provider] = ProviderMetrics()
+    return _provider_metrics[provider]
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _record_health_check(provider: str, status: str, error: str | None = None) -> None:
+    metrics = _metrics_for(provider)
+    metrics.health_checks += 1
+    metrics.last_status = f"health_{status}"
+    metrics.last_error = error
+    metrics.last_observed_at = _now_iso()
+
+
+def _record_analysis_result(provider: str, status: str, started_at: float, error: str | None = None) -> None:
+    metrics = _metrics_for(provider)
+    metrics.analyze_requests += 1
+    if status == "success":
+        metrics.analyze_successes += 1
+    else:
+        metrics.analyze_failures += 1
+    metrics.last_status = status
+    metrics.last_error = error
+    metrics.last_duration_ms = round((time.monotonic() - started_at) * 1000, 3)
+    metrics.last_observed_at = _now_iso()
+
+
+def _record_retry(provider: str) -> None:
+    metrics = _metrics_for(provider)
+    metrics.retry_attempts += 1
+    metrics.last_observed_at = _now_iso()
+
+
+def _record_circuit_open(provider: str) -> None:
+    metrics = _metrics_for(provider)
+    metrics.circuit_open_events += 1
+    metrics.last_observed_at = _now_iso()

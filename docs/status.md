@@ -33,6 +33,7 @@ Last updated: 2026-07-08
 - Added external HTTP analysis provider adapter with opt-in private locator sharing.
 - Added analysis provider health checks, transient retry/backoff, and structured provider failures.
 - Added lightweight circuit-breaker behavior for repeated external analysis provider failures.
+- Added internal analysis provider metrics for requests, retries, failures, health checks, circuit opens, and latency.
 
 ## Verification
 
@@ -43,5 +44,4 @@ Last updated: 2026-07-08
 
 ## Next
 
-- Add structured analysis provider observability metrics.
 - Extend render validation for subtitle presence, black frames, and output delivery targets.

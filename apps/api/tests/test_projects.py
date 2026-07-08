@@ -161,6 +161,12 @@ def test_analysis_provider_health_endpoint(client, auth_headers):
     assert response.json()["status"] == "healthy"
     assert response.json()["provider"] == "deterministic-local-metadata-v1"
 
+    metrics = client.get("/internal/analysis-provider/metrics", headers=auth_headers)
+    assert metrics.status_code == 200
+    local_metrics = metrics.json()["providers"]["deterministic-local-metadata-v1"]
+    assert local_metrics["health_checks"] >= 1
+    assert local_metrics["last_status"] == "health_healthy"
+
 
 def test_google_oauth_callback_encrypts_tokens(client, auth_headers, monkeypatch):
     monkeypatch.setattr(settings, "google_client_id", "client-id")
@@ -377,6 +383,9 @@ def test_external_http_analysis_provider_uses_sanitized_metadata(client, auth_he
     monkeypatch.setattr(settings, "analysis_provider_token", "provider-token")
     monkeypatch.setattr(settings, "analysis_provider_include_private_locator", False)
     monkeypatch.setattr(settings, "analysis_provider_retry_backoff_seconds", 0)
+    before_metrics = client.get("/internal/analysis-provider/metrics", headers=auth_headers).json()["providers"].get(
+        "external-http-analysis-v1", {}
+    )
     captured = {}
     attempts = []
 
@@ -465,6 +474,14 @@ def test_external_http_analysis_provider_uses_sanitized_metadata(client, auth_he
     assert "talking head" in plans.json()["plans"][0]["plan"]["strategy"]["hook"]
     assert plans.json()["plans"][0]["plan"]["tracks"][0]["clips"][0]["effect"] in {"match_cut", "subject_push", "subtle_zoom"}
 
+    after_metrics = client.get("/internal/analysis-provider/metrics", headers=auth_headers).json()["providers"][
+        "external-http-analysis-v1"
+    ]
+    assert after_metrics["analyze_successes"] == before_metrics.get("analyze_successes", 0) + 1
+    assert after_metrics["retry_attempts"] == before_metrics.get("retry_attempts", 0) + 1
+    assert after_metrics["last_status"] == "success"
+    assert after_metrics["last_duration_ms"] >= 0
+
 
 def test_external_http_analysis_provider_circuit_breaker(client, auth_headers, monkeypatch):
     monkeypatch.setattr(settings, "analysis_provider", "external_http")
@@ -473,6 +490,9 @@ def test_external_http_analysis_provider_circuit_breaker(client, auth_headers, m
     monkeypatch.setattr(settings, "analysis_provider_retry_backoff_seconds", 0)
     monkeypatch.setattr(settings, "analysis_provider_circuit_failure_threshold", 1)
     monkeypatch.setattr(settings, "analysis_provider_circuit_reset_seconds", 60)
+    before_metrics = client.get("/internal/analysis-provider/metrics", headers=auth_headers).json()["providers"].get(
+        "external-http-analysis-v1", {}
+    )
     attempts = []
 
     def fake_post(url, headers, json, timeout):
@@ -516,6 +536,13 @@ def test_external_http_analysis_provider_circuit_breaker(client, auth_headers, m
     assert second.json()["detail"]["message"] == "analysis provider circuit is open"
     assert second.json()["detail"]["details"]["circuit"]["open"] is True
     assert attempts == ["https://analysis.internal/analyze"]
+
+    after_metrics = client.get("/internal/analysis-provider/metrics", headers=auth_headers).json()["providers"][
+        "external-http-analysis-v1"
+    ]
+    assert after_metrics["analyze_failures"] == before_metrics.get("analyze_failures", 0) + 2
+    assert after_metrics["circuit_open_events"] >= before_metrics.get("circuit_open_events", 0) + 1
+    assert after_metrics["last_status"] == "failure"
 
 
 def test_clamav_scan_downloads_private_drive_asset(client, auth_headers, monkeypatch):

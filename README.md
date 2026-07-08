@@ -40,6 +40,7 @@ The current executable slice supports:
 - Optionally call an external private HTTP analysis provider with sanitized metadata only by default.
 - Check analysis provider health and retry transient external analysis failures.
 - Open a lightweight circuit breaker after repeated external analysis failures.
+- Expose internal analysis provider metrics for requests, retries, failures, circuit opens, and latency.
 - Generate deterministic timeline plans from analysis metadata.
 - Review, reject, regenerate, and approve timeline plans before rendering.
 - Use the dashboard project console to run the private workflow and review plans.
