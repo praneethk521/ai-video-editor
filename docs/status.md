@@ -34,14 +34,15 @@ Last updated: 2026-07-08
 - Added analysis provider health checks, transient retry/backoff, and structured provider failures.
 - Added lightweight circuit-breaker behavior for repeated external analysis provider failures.
 - Added internal analysis provider metrics for requests, retries, failures, health checks, circuit opens, and latency.
+- Added render validation signals for embedded subtitles, planned captions, black frames, and private delivery targets.
 
 ## Verification
 
 - API tests: passed locally (`12 passed`).
-- Worker tests: passed locally (`3 passed`).
+- Worker tests: passed locally (`4 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Extend render validation for subtitle presence, black frames, and output delivery targets.
+- Add private Drive/S3 output delivery implementation.

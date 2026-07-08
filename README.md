@@ -45,7 +45,8 @@ The current executable slice supports:
 - Review, reject, regenerate, and approve timeline plans before rendering.
 - Use the dashboard project console to run the private workflow and review plans.
 - Queue render jobs for landscape and vertical outputs.
-- Validate rendered outputs with ffprobe and register private output metadata.
+- Validate rendered outputs with ffprobe, subtitle signals, black-frame scan signals, and private delivery targets.
+- Register private output metadata.
 - Audit user actions without logging secrets, tokens, public URLs, or file contents.
 
 ## Security Defaults

@@ -44,6 +44,10 @@ class VideoRenderer:
                 expected_width=export["width"],
                 expected_height=export["height"],
                 expected_duration_seconds=duration,
+                expected_caption_count=self._caption_count(plan),
+                delivery_target=settings.output_storage_provider,
+                require_embedded_subtitles=settings.require_embedded_subtitles,
+                fail_on_black_frames=settings.fail_on_black_frames,
             )
 
         return RenderResult(
@@ -59,6 +63,8 @@ class VideoRenderer:
                 "hashtags": plan.get("strategy", {}).get("hashtags", []),
                 "chapters": self._chapters(plan) if variant == "youtube_16x9" else [],
                 "manual_upload_only": True,
+                "delivery_target": settings.output_storage_provider,
+                "delivery_status": "private_staging",
             },
         )
 
@@ -99,3 +105,12 @@ class VideoRenderer:
         for index, clip in enumerate(plan["tracks"][0]["clips"], start=1):
             chapters.append({"time": clip["timeline_start"], "title": f"Moment {index}"})
         return chapters
+
+    @staticmethod
+    def _caption_count(plan: dict) -> int:
+        count = 0
+        for track in plan["tracks"]:
+            for clip in track["clips"]:
+                if clip.get("caption"):
+                    count += 1
+        return count

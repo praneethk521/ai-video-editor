@@ -13,6 +13,9 @@ class WorkerSettings:
     temp_root: str = os.getenv("VIDEO_TEMP_ROOT", "/tmp/ai-video-editor")
     ffmpeg_path: str = os.getenv("FFMPEG_PATH", "ffmpeg")
     ffprobe_path: str = os.getenv("FFPROBE_PATH", "ffprobe")
+    output_storage_provider: str = os.getenv("OUTPUT_STORAGE_PROVIDER", "drive")
+    require_embedded_subtitles: bool = os.getenv("REQUIRE_EMBEDDED_SUBTITLES", "false").lower() in {"1", "true", "yes"}
+    fail_on_black_frames: bool = os.getenv("FAIL_ON_BLACK_FRAMES", "false").lower() in {"1", "true", "yes"}
     render_dry_run: bool = os.getenv("RENDER_DRY_RUN", "true").lower() in {"1", "true", "yes"}
 
 

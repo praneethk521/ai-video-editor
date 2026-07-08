@@ -39,8 +39,7 @@ Status: In progress
 
 - FFmpeg/Remotion production renderer.
 - Captions, transitions, audio normalization, vertical subject crop.
-- Output validation for resolution, duration, audio stream, and corruption.
-- Subtitle and black-frame validation.
+- Output validation for resolution, duration, audio stream, subtitles, black-frame signals, delivery target, and corruption.
 - Private Drive/S3 output delivery.
 
 ## M4 - Production Hardening
