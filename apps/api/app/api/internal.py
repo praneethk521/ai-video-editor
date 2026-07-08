@@ -7,10 +7,30 @@ from app.core.security import CurrentUser, get_current_user
 from app.db.session import get_db
 from app.schemas.api import MalwareScanResultRequest, WorkerRenderCompleteRequest, WorkerRenderFailedRequest
 from app.services.audit import audit
+from app.services.analysis_providers import get_analysis_provider
 from app.services.malware import record_malware_scan_result, scan_media_asset
 from app.services.rendering import complete_render_job, fail_render_job, mark_render_job_running
 
 router = APIRouter(prefix="/internal", tags=["internal"])
+
+
+@router.get("/analysis-provider/health")
+def analysis_provider_health(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    health = get_analysis_provider().health()
+    audit(
+        db,
+        user_id=user.id,
+        project_id=None,
+        action="analysis.provider.health",
+        correlation_id=request.state.correlation_id,
+        metadata={"provider": health.provider, "status": health.status},
+    )
+    db.commit()
+    return {"provider": health.provider, "status": health.status, "details": health.details}
 
 
 @router.post("/render-jobs/{render_job_id}/running", status_code=status.HTTP_204_NO_CONTENT)

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 from statistics import mean
+import time
 from typing import Protocol
 
 import httpx
@@ -17,15 +18,38 @@ class ProjectAnalysis:
     result: dict
 
 
+@dataclass(frozen=True)
+class ProviderHealth:
+    provider: str
+    status: str
+    details: dict
+
+
+class AnalysisProviderError(ValueError):
+    def __init__(self, message: str, details: dict):
+        super().__init__(message)
+        self.details = details
+
+
 class AnalysisProvider(Protocol):
     provider_name: str
 
     def analyze(self, assets: list[MediaAsset]) -> ProjectAnalysis:
         raise NotImplementedError
 
+    def health(self) -> ProviderHealth:
+        raise NotImplementedError
+
 
 class DeterministicLocalAnalysisProvider:
     provider_name = "deterministic-local-metadata-v1"
+
+    def health(self) -> ProviderHealth:
+        return ProviderHealth(
+            provider=self.provider_name,
+            status="healthy",
+            details={"mode": "local", "requires_network": False},
+        )
 
     def analyze(self, assets: list[MediaAsset]) -> ProjectAnalysis:
         features = [self._asset_feature(asset) for asset in assets]
@@ -180,28 +204,55 @@ class DeterministicLocalAnalysisProvider:
 class ExternalHTTPAnalysisProvider:
     provider_name = "external-http-analysis-v1"
 
+    def health(self) -> ProviderHealth:
+        if not settings.analysis_provider_url:
+            return ProviderHealth(
+                provider=self.provider_name,
+                status="unhealthy",
+                details={"reason": "analysis provider URL is not configured"},
+            )
+        try:
+            response = httpx.get(
+                settings.analysis_provider_health_url or settings.analysis_provider_url,
+                headers=self._headers(),
+                timeout=settings.analysis_provider_timeout_seconds,
+            )
+            return ProviderHealth(
+                provider=self.provider_name,
+                status="healthy" if response.status_code < 500 else "unhealthy",
+                details={"status_code": response.status_code},
+            )
+        except httpx.HTTPError as exc:
+            return ProviderHealth(
+                provider=self.provider_name,
+                status="unhealthy",
+                details={"error": exc.__class__.__name__},
+            )
+
     def analyze(self, assets: list[MediaAsset]) -> ProjectAnalysis:
         if not settings.analysis_provider_url:
-            raise ValueError("ANALYSIS_PROVIDER_URL is required when ANALYSIS_PROVIDER=external_http")
+            raise AnalysisProviderError(
+                "analysis provider is not configured",
+                {"provider": self.provider_name, "missing": "ANALYSIS_PROVIDER_URL"},
+            )
 
         fallback = DeterministicLocalAnalysisProvider().analyze(assets).result
-        response = httpx.post(
-            settings.analysis_provider_url,
-            headers=self._headers(),
-            json={
+        response = self._post_with_retries(
+            {
                 "schema_version": 1,
                 "privacy": {
                     "media_bytes_included": False,
                     "private_locator_included": settings.analysis_provider_include_private_locator,
                 },
                 "assets": [self._asset_payload(asset) for asset in assets],
-            },
-            timeout=settings.analysis_provider_timeout_seconds,
+            }
         )
-        response.raise_for_status()
         payload = response.json()
         if not isinstance(payload, dict):
-            raise ValueError("analysis provider returned a non-object response")
+            raise AnalysisProviderError(
+                "analysis provider returned an invalid response",
+                {"provider": self.provider_name, "reason": "response was not a JSON object"},
+            )
 
         result = {**fallback, **payload}
         result["provider"] = payload.get("provider") or self.provider_name
@@ -212,6 +263,32 @@ class ExternalHTTPAnalysisProvider:
             "private_locator_included": settings.analysis_provider_include_private_locator,
         }
         return ProjectAnalysis(provider=result["provider"], result=result)
+
+    def _post_with_retries(self, payload: dict) -> httpx.Response:
+        attempts = max(1, settings.analysis_provider_max_attempts)
+        last_error: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            try:
+                response = httpx.post(
+                    settings.analysis_provider_url,
+                    headers=self._headers(),
+                    json=payload,
+                    timeout=settings.analysis_provider_timeout_seconds,
+                )
+                response.raise_for_status()
+                return response
+            except httpx.HTTPError as exc:
+                last_error = exc
+                if attempt < attempts:
+                    time.sleep(settings.analysis_provider_retry_backoff_seconds)
+        raise AnalysisProviderError(
+            "analysis provider unavailable",
+            {
+                "provider": self.provider_name,
+                "attempts": attempts,
+                "error": last_error.__class__.__name__ if last_error else "unknown",
+            },
+        )
 
     @staticmethod
     def _headers() -> dict:

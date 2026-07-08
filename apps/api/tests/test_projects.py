@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs, urlparse
 
+import httpx
+
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.entities import MediaAsset, OAuthConnection, Project, ProjectStatus
@@ -151,6 +153,13 @@ def test_rejects_public_media_urls_and_path_traversal(client, auth_headers):
 def test_requires_authentication(client):
     response = client.post("/projects", json={"name": "Nope"})
     assert response.status_code == 401
+
+
+def test_analysis_provider_health_endpoint(client, auth_headers):
+    response = client.get("/internal/analysis-provider/health", headers=auth_headers)
+    assert response.status_code == 200
+    assert response.json()["status"] == "healthy"
+    assert response.json()["provider"] == "deterministic-local-metadata-v1"
 
 
 def test_google_oauth_callback_encrypts_tokens(client, auth_headers, monkeypatch):
@@ -367,7 +376,9 @@ def test_external_http_analysis_provider_uses_sanitized_metadata(client, auth_he
     monkeypatch.setattr(settings, "analysis_provider_url", "https://analysis.internal/analyze")
     monkeypatch.setattr(settings, "analysis_provider_token", "provider-token")
     monkeypatch.setattr(settings, "analysis_provider_include_private_locator", False)
+    monkeypatch.setattr(settings, "analysis_provider_retry_backoff_seconds", 0)
     captured = {}
+    attempts = []
 
     class FakeAnalysisResponse:
         def raise_for_status(self):
@@ -403,6 +414,9 @@ def test_external_http_analysis_provider_uses_sanitized_metadata(client, auth_he
             }
 
     def fake_post(url, headers, json, timeout):
+        attempts.append(url)
+        if len(attempts) == 1:
+            raise httpx.ConnectError("temporary outage")
         captured.update({"url": url, "headers": headers, "json": json, "timeout": timeout})
         return FakeAnalysisResponse()
 
@@ -437,6 +451,7 @@ def test_external_http_analysis_provider_uses_sanitized_metadata(client, auth_he
     assert analyzed.status_code == 200
 
     assert captured["url"] == "https://analysis.internal/analyze"
+    assert attempts == ["https://analysis.internal/analyze", "https://analysis.internal/analyze"]
     assert captured["headers"]["Authorization"] == "Bearer provider-token"
     assert captured["timeout"] == settings.analysis_provider_timeout_seconds
     assert "private_locator" not in captured["json"]["assets"][0]

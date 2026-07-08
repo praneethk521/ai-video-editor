@@ -25,8 +25,11 @@ class Settings(BaseSettings):
     malware_scanner_backend: str = "clamav"
     analysis_provider: str = "deterministic_local"
     analysis_provider_url: str = ""
+    analysis_provider_health_url: str = ""
     analysis_provider_token: str = Field(default="", repr=False)
     analysis_provider_timeout_seconds: int = 60
+    analysis_provider_max_attempts: int = 2
+    analysis_provider_retry_backoff_seconds: float = 0.25
     analysis_provider_include_private_locator: bool = False
     clamav_host: str = "clamav"
     clamav_port: int = 3310

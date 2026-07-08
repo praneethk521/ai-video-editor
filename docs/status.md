@@ -31,15 +31,16 @@ Last updated: 2026-07-08
 - Added configurable analysis provider selection with privacy-safe scene, audio, subject, and highlight metadata.
 - Added analysis review API and dashboard summary panel.
 - Added external HTTP analysis provider adapter with opt-in private locator sharing.
+- Added analysis provider health checks, transient retry/backoff, and structured provider failures.
 
 ## Verification
 
-- API tests: passed locally (`10 passed`).
+- API tests: passed locally (`11 passed`).
 - Worker tests: passed locally (`3 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Add provider health checks, retry/backoff, and structured failure handling for external analysis.
+- Add structured analysis provider observability metrics and circuit-breaker behavior.
 - Extend render validation for subtitle presence, black frames, and output delivery targets.
