@@ -30,16 +30,16 @@ Last updated: 2026-07-08
 - Added ffprobe output validation metadata for rendered video resolution, duration, audio stream, and corruption checks.
 - Added configurable analysis provider selection with privacy-safe scene, audio, subject, and highlight metadata.
 - Added analysis review API and dashboard summary panel.
+- Added external HTTP analysis provider adapter with opt-in private locator sharing.
 
 ## Verification
 
-- API tests: passed locally (`9 passed`).
+- API tests: passed locally (`10 passed`).
 - Worker tests: passed locally (`3 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Integrate production AI providers and richer scene/audio/subject metadata into plan generation.
-- Add a real media-analysis provider adapter behind the analysis provider interface.
+- Add provider health checks, retry/backoff, and structured failure handling for external analysis.
 - Extend render validation for subtitle presence, black frames, and output delivery targets.

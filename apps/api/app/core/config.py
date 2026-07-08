@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     token_encryption_key: str = Field(default="", repr=False)
     malware_scanner_backend: str = "clamav"
     analysis_provider: str = "deterministic_local"
+    analysis_provider_url: str = ""
+    analysis_provider_token: str = Field(default="", repr=False)
+    analysis_provider_timeout_seconds: int = 60
+    analysis_provider_include_private_locator: bool = False
     clamav_host: str = "clamav"
     clamav_port: int = 3310
     max_upload_bytes: int = 2_147_483_648

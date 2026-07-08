@@ -27,6 +27,7 @@ Status: Completed
 Status: In progress
 
 - Configurable model providers.
+- External private analysis provider adapter.
 - Scene detection, blur detection, face/subject metadata, audio quality.
 - Storytelling agent prompts.
 - Plan regeneration and human review.

@@ -362,6 +362,95 @@ def test_regenerate_and_reject_timeline_plan(client, auth_headers):
     assert len(plans.json()["plans"]) == 3
 
 
+def test_external_http_analysis_provider_uses_sanitized_metadata(client, auth_headers, monkeypatch):
+    monkeypatch.setattr(settings, "analysis_provider", "external_http")
+    monkeypatch.setattr(settings, "analysis_provider_url", "https://analysis.internal/analyze")
+    monkeypatch.setattr(settings, "analysis_provider_token", "provider-token")
+    monkeypatch.setattr(settings, "analysis_provider_include_private_locator", False)
+    captured = {}
+
+    class FakeAnalysisResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            asset_id = captured["json"]["assets"][0]["asset_id"]
+            return {
+                "provider": "unit-test-analysis-provider",
+                "summary": {
+                    "asset_count": 1,
+                    "scene_count": 4,
+                    "primary_orientation": "portrait",
+                    "average_highlight_score": 0.91,
+                    "subjects_detected": 1,
+                    "audio_quality": "good",
+                    "duplicate_clip_detection": "no_duplicates_found",
+                },
+                "asset_features": [
+                    {
+                        "asset_id": asset_id,
+                        "mime_type": "video/mp4",
+                        "duration_seconds": 9,
+                        "orientation": "portrait",
+                        "scene_count": 4,
+                        "highlight_score": 0.91,
+                        "tags": ["interview", "talking_head"],
+                        "subject": {"presence": "likely_human", "confidence": 0.88, "framing": "face_subject"},
+                        "audio": {"quality": "good", "score": 0.9, "recommended_lufs": -14},
+                        "visual": {"quality": "usable", "blur_risk": "low", "motion": "unknown"},
+                    }
+                ],
+            }
+
+    def fake_post(url, headers, json, timeout):
+        captured.update({"url": url, "headers": headers, "json": json, "timeout": timeout})
+        return FakeAnalysisResponse()
+
+    monkeypatch.setattr("app.services.analysis_providers.httpx.post", fake_post)
+
+    project = client.post("/projects", json={"name": "External Analysis"}, headers=auth_headers).json()
+    ingested = client.post(
+        f"/projects/{project['id']}/ingest",
+        json={
+            "assets": [
+                {
+                    "filename": "interview.mp4",
+                    "mime_type": "video/mp4",
+                    "size_bytes": 900000,
+                    "duration_seconds": 9,
+                    "orientation": "portrait",
+                    "private_locator": "drive://private-folder-id/interview",
+                }
+            ]
+        },
+        headers=auth_headers,
+    )
+    media_asset_id = ingested.json()["accepted_asset_ids"][0]
+    scan = client.post(
+        f"/internal/media-assets/{media_asset_id}/malware-scan",
+        json={"status": "clean", "scanner": "unit-test", "details": {}},
+        headers=auth_headers,
+    )
+    assert scan.status_code == 204
+
+    analyzed = client.post(f"/projects/{project['id']}/analyze", headers=auth_headers)
+    assert analyzed.status_code == 200
+
+    assert captured["url"] == "https://analysis.internal/analyze"
+    assert captured["headers"]["Authorization"] == "Bearer provider-token"
+    assert captured["timeout"] == settings.analysis_provider_timeout_seconds
+    assert "private_locator" not in captured["json"]["assets"][0]
+    assert captured["json"]["assets"][0]["sanitized_filename"] == "interview.mp4"
+
+    analysis = client.get(f"/projects/{project['id']}/analysis", headers=auth_headers)
+    assert analysis.json()["results"][0]["provider"] == "unit-test-analysis-provider"
+    assert analysis.json()["results"][0]["result"]["privacy"]["private_locator_included"] is False
+
+    plans = client.get(f"/projects/{project['id']}/plans", headers=auth_headers)
+    assert "talking head" in plans.json()["plans"][0]["plan"]["strategy"]["hook"]
+    assert plans.json()["plans"][0]["plan"]["tracks"][0]["clips"][0]["effect"] in {"match_cut", "subject_push", "subtle_zoom"}
+
+
 def test_clamav_scan_downloads_private_drive_asset(client, auth_headers, monkeypatch):
     monkeypatch.setattr(settings, "google_client_id", "client-id")
     monkeypatch.setattr(settings, "google_client_secret", "client-secret")

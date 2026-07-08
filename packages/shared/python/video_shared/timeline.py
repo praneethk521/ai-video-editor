@@ -80,6 +80,9 @@ def _primary_focus(assets: list[AssetSummary]) -> str:
     tags = [tag for asset in assets[:5] for tag in asset.tags if tag != "general"]
     if not tags:
         return "visual"
+    for priority_tag in ("talking_head", "hook", "hero", "highlight", "demo", "screen_recording", "interview"):
+        if priority_tag in tags:
+            return priority_tag.replace("_", " ")
     return tags[0].replace("_", " ")
 
 

@@ -37,6 +37,7 @@ The current executable slice supports:
 - Traverse connected Google Drive folders and skip duplicate media by checksum.
 - Stream private Drive media through ClamAV before analysis/rendering.
 - Generate privacy-safe scene, audio, subject, and highlight metadata through a configurable analysis provider.
+- Optionally call an external private HTTP analysis provider with sanitized metadata only by default.
 - Generate deterministic timeline plans from analysis metadata.
 - Review, reject, regenerate, and approve timeline plans before rendering.
 - Use the dashboard project console to run the private workflow and review plans.

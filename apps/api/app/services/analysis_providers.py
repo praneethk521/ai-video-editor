@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from statistics import mean
 from typing import Protocol
 
+import httpx
+
 from app.core.config import settings
 from app.models.entities import MediaAsset
 
@@ -175,7 +177,69 @@ class DeterministicLocalAnalysisProvider:
         return round(min(score, 0.97), 3)
 
 
+class ExternalHTTPAnalysisProvider:
+    provider_name = "external-http-analysis-v1"
+
+    def analyze(self, assets: list[MediaAsset]) -> ProjectAnalysis:
+        if not settings.analysis_provider_url:
+            raise ValueError("ANALYSIS_PROVIDER_URL is required when ANALYSIS_PROVIDER=external_http")
+
+        fallback = DeterministicLocalAnalysisProvider().analyze(assets).result
+        response = httpx.post(
+            settings.analysis_provider_url,
+            headers=self._headers(),
+            json={
+                "schema_version": 1,
+                "privacy": {
+                    "media_bytes_included": False,
+                    "private_locator_included": settings.analysis_provider_include_private_locator,
+                },
+                "assets": [self._asset_payload(asset) for asset in assets],
+            },
+            timeout=settings.analysis_provider_timeout_seconds,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise ValueError("analysis provider returned a non-object response")
+
+        result = {**fallback, **payload}
+        result["provider"] = payload.get("provider") or self.provider_name
+        result["privacy"] = {
+            **fallback.get("privacy", {}),
+            **payload.get("privacy", {}),
+            "media_bytes_used": False,
+            "private_locator_included": settings.analysis_provider_include_private_locator,
+        }
+        return ProjectAnalysis(provider=result["provider"], result=result)
+
+    @staticmethod
+    def _headers() -> dict:
+        headers = {"Content-Type": "application/json"}
+        if settings.analysis_provider_token:
+            headers["Authorization"] = f"Bearer {settings.analysis_provider_token}"
+        return headers
+
+    @staticmethod
+    def _asset_payload(asset: MediaAsset) -> dict:
+        payload = {
+            "asset_id": asset.id,
+            "sanitized_filename": asset.sanitized_filename,
+            "mime_type": asset.mime_type,
+            "size_bytes": asset.size_bytes,
+            "duration_seconds": asset.duration_seconds,
+            "orientation": asset.orientation,
+            "content_checksum": asset.content_checksum,
+            "metadata": asset.metadata_json,
+        }
+        if settings.analysis_provider_include_private_locator:
+            payload["private_locator"] = asset.private_locator
+        return payload
+
+
 def get_analysis_provider() -> AnalysisProvider:
     if settings.analysis_provider in {"deterministic_local", "deterministic-local-metadata-v1"}:
         return DeterministicLocalAnalysisProvider()
+    if settings.analysis_provider in {"external_http", "external-http-analysis-v1"}:
+        return ExternalHTTPAnalysisProvider()
     raise ValueError(f"unsupported analysis provider: {settings.analysis_provider}")
