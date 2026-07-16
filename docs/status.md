@@ -49,6 +49,7 @@ Last updated: 2026-07-16
 - Added retention policy documentation for delivered private output artifacts.
 - Added retention metadata and lifecycle tags to delivered output adapters.
 - Added operator-facing retention status display for delivered outputs.
+- Added project-level output retention report API for delivered output review.
 
 ## Verification
 
@@ -59,4 +60,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add API retention report endpoint for delivered output review.
+- Add dashboard action to load the output retention report.

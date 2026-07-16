@@ -438,6 +438,18 @@ def test_local_private_smoke_workflow_project_to_delivery(client, auth_headers, 
         for output in delivered_outputs.json()["outputs"]
     )
 
+    retention_report = client.get(f"/projects/{project_id}/outputs/retention", headers=auth_headers)
+    assert retention_report.status_code == 200
+    retention_rows = retention_report.json()["outputs"]
+    assert len(retention_rows) == 2
+    assert {row["target"] for row in retention_rows} == {"local_private"}
+    assert {row["status"] for row in retention_rows} == {"delivered"}
+    assert all(row["has_retention_metadata"] is True for row in retention_rows)
+    assert all(row["retention"]["privacy"] == "private" for row in retention_rows)
+    assert all(row["cleanup_status"] == "deleted" for row in retention_rows)
+    assert all(row["days_until_delete"] is not None and row["days_until_delete"] > 0 for row in retention_rows)
+    assert {row["retention_due"] for row in retention_rows} == {False}
+
 
 def test_rejects_public_media_urls_and_path_traversal(client, auth_headers):
     project = client.post("/projects", json={"name": "Secure ingest"}, headers=auth_headers).json()

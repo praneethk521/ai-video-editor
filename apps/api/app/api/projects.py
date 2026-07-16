@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
@@ -15,6 +17,7 @@ from app.schemas.api import (
     IngestRequest,
     IngestResponse,
     OutputResponse,
+    OutputRetentionReportResponse,
     PlanRegenerateRequest,
     PlanReviewRequest,
     ProjectCreate,
@@ -400,6 +403,20 @@ def outputs(
     )
 
 
+@router.get("/{project_id}/outputs/retention", response_model=OutputRetentionReportResponse)
+def output_retention_report(
+    project_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = get_project_or_404(db, project_id, user)
+    rows = db.query(OutputVideo).filter(OutputVideo.project_id == project.id).all()
+    return OutputRetentionReportResponse(
+        project_id=project.id,
+        outputs=[output_retention_row(row) for row in rows],
+    )
+
+
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_project(
     project_id: str,
@@ -412,6 +429,35 @@ def delete_project(
     audit(db, user_id=user.id, project_id=project_id, action="project.deleted", correlation_id=request.state.correlation_id)
     db.commit()
     return None
+
+
+def output_retention_row(row: OutputVideo) -> dict:
+    delivery_json = row.delivery_json or {}
+    details = delivery_json.get("details") or {}
+    retention = details.get("retention") or {}
+    cleanup = delivery_json.get("staged_source_cleanup") or {}
+    days_until_delete = days_until_retention_delete(retention.get("delete_after"))
+    return {
+        "id": row.id,
+        "variant": row.variant,
+        "target": row.delivery_target,
+        "status": row.delivery_status,
+        "delivered_locator": row.delivered_locator,
+        "has_retention_metadata": bool(retention),
+        "retention": retention,
+        "cleanup_status": cleanup.get("status"),
+        "days_until_delete": days_until_delete,
+        "retention_due": days_until_delete is not None and days_until_delete <= 0,
+    }
+
+
+def days_until_retention_delete(delete_after: object) -> int | None:
+    if not isinstance(delete_after, str):
+        return None
+    try:
+        return (date.fromisoformat(delete_after) - date.today()).days
+    except ValueError:
+        return None
 
 
 def plan_to_response(plan) -> TimelinePlanRead:

@@ -100,6 +100,11 @@ class OutputResponse(BaseModel):
     outputs: list[dict]
 
 
+class OutputRetentionReportResponse(BaseModel):
+    project_id: str
+    outputs: list[dict]
+
+
 class WorkerRenderCompleteRequest(BaseModel):
     variant: str
     private_locator: str
