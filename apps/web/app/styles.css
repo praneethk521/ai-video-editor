@@ -362,6 +362,11 @@ p {
   overflow-wrap: anywhere;
 }
 
+.outputRetention {
+  color: var(--accent-strong) !important;
+  overflow-wrap: anywhere;
+}
+
 .logRow {
   color: var(--muted);
 }

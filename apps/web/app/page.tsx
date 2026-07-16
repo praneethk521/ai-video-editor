@@ -75,6 +75,15 @@ type OutputVideo = {
     details?: {
       details?: {
         error?: string;
+        retention?: {
+          privacy?: string;
+          retention_policy?: string;
+          retention_days?: string;
+          delete_after?: string;
+        };
+      };
+      staged_source_cleanup?: {
+        status?: string;
       };
     };
   };
@@ -107,6 +116,20 @@ function variantLabel(variant: string) {
 
 function clipCount(plan: TimelinePlanBody) {
   return plan.tracks?.reduce((sum, track) => sum + track.clips.length, 0) ?? 0;
+}
+
+function retentionSummary(output: OutputVideo) {
+  const retention = output.delivery?.details?.details?.retention;
+  if (!retention) return null;
+  const policy = retention.retention_policy?.replaceAll("_", " ");
+  const days = retention.retention_days ? `${retention.retention_days}d` : policy;
+  const deleteAfter = retention.delete_after ? `delete after ${retention.delete_after}` : null;
+  return [days ? `Retention ${days}` : "Retention policy", deleteAfter].filter(Boolean).join(" · ");
+}
+
+function cleanupSummary(output: OutputVideo) {
+  const status = output.delivery?.details?.staged_source_cleanup?.status;
+  return status ? `Staged cleanup ${status}` : null;
 }
 
 export default function Page() {
@@ -500,31 +523,37 @@ export default function Page() {
               </button>
             </div>
             <div className="outputList">
-              {outputs.map((output) => (
-                <div className="outputRow" key={output.id}>
-                  <strong>{variantLabel(output.variant)}</strong>
-                  <span>
-                    {output.width}x{output.height} · {output.duration_seconds}s
-                  </span>
-                  <span className={`pill ${output.validation?.status ?? "pending"}`}>
-                    {output.validation?.status ?? "pending validation"}
-                  </span>
-                  <span className={`pill ${output.delivery?.status ?? "private_staging"}`}>
-                    {output.delivery?.target ?? "delivery"} · {output.delivery?.status ?? "private staging"}
-                  </span>
-                  {output.delivery?.status === "failed" && output.delivery.details?.details?.error ? (
-                    <span className="outputError">{output.delivery.details.details.error}</span>
-                  ) : null}
-                  <button
-                    className="ghost"
-                    onClick={() => void deliverOutput(output)}
-                    disabled={busy !== null || output.delivery?.status === "delivered"}
-                  >
-                    <UploadCloud size={16} />
-                    Deliver
-                  </button>
-                </div>
-              ))}
+              {outputs.map((output) => {
+                const retention = retentionSummary(output);
+                const cleanup = cleanupSummary(output);
+                return (
+                  <div className="outputRow" key={output.id}>
+                    <strong>{variantLabel(output.variant)}</strong>
+                    <span>
+                      {output.width}x{output.height} · {output.duration_seconds}s
+                    </span>
+                    <span className={`pill ${output.validation?.status ?? "pending"}`}>
+                      {output.validation?.status ?? "pending validation"}
+                    </span>
+                    <span className={`pill ${output.delivery?.status ?? "private_staging"}`}>
+                      {output.delivery?.target ?? "delivery"} · {output.delivery?.status ?? "private staging"}
+                    </span>
+                    {retention ? <span className="outputRetention">{retention}</span> : null}
+                    {cleanup ? <span className="outputRetention">{cleanup}</span> : null}
+                    {output.delivery?.status === "failed" && output.delivery.details?.details?.error ? (
+                      <span className="outputError">{output.delivery.details.details.error}</span>
+                    ) : null}
+                    <button
+                      className="ghost"
+                      onClick={() => void deliverOutput(output)}
+                      disabled={busy !== null || output.delivery?.status === "delivered"}
+                    >
+                      <UploadCloud size={16} />
+                      Deliver
+                    </button>
+                  </div>
+                );
+              })}
               {outputs.length === 0 ? <div className="emptyState">No outputs</div> : null}
             </div>
           </div>

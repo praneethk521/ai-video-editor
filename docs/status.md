@@ -48,6 +48,7 @@ Last updated: 2026-07-16
 - Added optional staged output cleanup after confirmed private delivery.
 - Added retention policy documentation for delivered private output artifacts.
 - Added retention metadata and lifecycle tags to delivered output adapters.
+- Added operator-facing retention status display for delivered outputs.
 
 ## Verification
 
@@ -58,4 +59,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add operator-facing retention status display for delivered outputs.
+- Add API retention report endpoint for delivered output review.
