@@ -50,6 +50,7 @@ Last updated: 2026-07-16
 - Added retention metadata and lifecycle tags to delivered output adapters.
 - Added operator-facing retention status display for delivered outputs.
 - Added project-level output retention report API for delivered output review.
+- Added dashboard action to load the output retention report.
 
 ## Verification
 
@@ -60,4 +61,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add dashboard action to load the output retention report.
+- Add delivered-output retention cleanup workflow for due artifacts.

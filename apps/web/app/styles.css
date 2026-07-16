@@ -253,6 +253,7 @@ p {
 .planList,
 .jobTable,
 .outputList,
+.retentionList,
 .analysisList,
 .logList {
   display: grid;
@@ -324,6 +325,7 @@ p {
 
 .jobRow,
 .outputRow,
+.retentionRow,
 .analysisMetric,
 .logRow,
 .emptyState {
@@ -336,6 +338,19 @@ p {
 .analysisMetric {
   display: grid;
   gap: 3px;
+}
+
+.retentionRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.retentionRow span:last-child {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: right;
 }
 
 .analysisMetric span {

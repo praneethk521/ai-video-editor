@@ -89,6 +89,17 @@ type OutputVideo = {
   };
 };
 
+type OutputRetentionRow = {
+  id: string;
+  variant: string;
+  target: string;
+  status: string;
+  has_retention_metadata: boolean;
+  retention_due: boolean;
+  days_until_delete?: number | null;
+  cleanup_status?: string | null;
+};
+
 type AnalysisResult = {
   id: string;
   provider: string;
@@ -141,6 +152,7 @@ export default function Page() {
   const [status, setStatus] = useState<ProjectStatus | null>(null);
   const [plans, setPlans] = useState<TimelinePlan[]>([]);
   const [outputs, setOutputs] = useState<OutputVideo[]>([]);
+  const [retentionRows, setRetentionRows] = useState<OutputRetentionRow[]>([]);
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -216,6 +228,7 @@ export default function Page() {
       setStatus({ project_id: project.id, status: project.status, media_count: 0, render_jobs: [] });
       setPlans([]);
       setOutputs([]);
+      setRetentionRows([]);
       setAnalysisResults([]);
     });
   }
@@ -299,6 +312,14 @@ export default function Page() {
     if (!projectId) return;
     const response = await api<{ outputs: OutputVideo[] }>(`/projects/${projectId}/outputs`);
     setOutputs(response.outputs);
+  }
+
+  async function loadRetentionReport() {
+    await run("Retention report loaded", async () => {
+      if (!projectId) return;
+      const response = await api<{ outputs: OutputRetentionRow[] }>(`/projects/${projectId}/outputs/retention`);
+      setRetentionRows(response.outputs);
+    });
   }
 
   async function deliverOutput(output: OutputVideo) {
@@ -518,9 +539,18 @@ export default function Page() {
           <div className="panel">
             <div className="panelHeader">
               <h2>Outputs</h2>
-              <button className="ghost" onClick={() => void loadOutputs()} disabled={!projectId || busy !== null}>
-                Load
-              </button>
+              <div className="buttonRow compact">
+                <button className="ghost" onClick={() => void loadOutputs()} disabled={!projectId || busy !== null}>
+                  Load
+                </button>
+                <button
+                  className="ghost"
+                  onClick={() => void loadRetentionReport()}
+                  disabled={!projectId || busy !== null}
+                >
+                  Retention
+                </button>
+              </div>
             </div>
             <div className="outputList">
               {outputs.map((output) => {
@@ -556,6 +586,19 @@ export default function Page() {
               })}
               {outputs.length === 0 ? <div className="emptyState">No outputs</div> : null}
             </div>
+            {retentionRows.length > 0 ? (
+              <div className="retentionList">
+                {retentionRows.map((row) => (
+                  <div className="retentionRow" key={row.id}>
+                    <span>{variantLabel(row.variant)}</span>
+                    <span className={`pill ${row.retention_due ? "failed" : "succeeded"}`}>
+                      {row.retention_due ? "due" : `${row.days_until_delete ?? "n/a"}d left`}
+                    </span>
+                    <span>{row.cleanup_status ? `cleanup ${row.cleanup_status}` : row.target}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="panel">
