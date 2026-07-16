@@ -20,6 +20,14 @@ spec:
           envFrom:
             - secretRef:
                 name: ai-video-api-secrets
+          env:
+            - name: OUTPUT_DELIVERY_LOCAL_ROOT
+              value: /tmp/ai-video-editor/outputs
+            - name: LOCAL_PRIVATE_DELIVERY_ROOT
+              value: /tmp/ai-video-editor/delivered
+          volumeMounts:
+            - name: output-staging
+              mountPath: /tmp/ai-video-editor
           resources:
             requests:
               cpu: "250m"
@@ -32,6 +40,10 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+      volumes:
+        - name: output-staging
+          persistentVolumeClaim:
+            claimName: ai-video-output-staging
 ---
 apiVersion: v1
 kind: Service
@@ -43,4 +55,14 @@ spec:
   ports:
     - port: 8000
       targetPort: 8000
-
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ai-video-output-staging
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi

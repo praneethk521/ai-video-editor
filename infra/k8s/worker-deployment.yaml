@@ -18,9 +18,16 @@ spec:
           envFrom:
             - secretRef:
                 name: ai-video-worker-secrets
+          env:
+            - name: VIDEO_TEMP_ROOT
+              value: /tmp/ai-video-editor
+            - name: OUTPUT_DELIVERY_LOCAL_ROOT
+              value: /tmp/ai-video-editor/outputs
           volumeMounts:
             - name: temp-media
               mountPath: /tmp
+            - name: output-staging
+              mountPath: /tmp/ai-video-editor
           resources:
             requests:
               cpu: "1"
@@ -37,4 +44,6 @@ spec:
         - name: temp-media
           emptyDir:
             sizeLimit: 20Gi
-
+        - name: output-staging
+          persistentVolumeClaim:
+            claimName: ai-video-output-staging

@@ -37,6 +37,9 @@ services:
       dockerfile: apps/api/Dockerfile
     env_file:
       - ../../.env
+    environment:
+      OUTPUT_DELIVERY_LOCAL_ROOT: /tmp/ai-video-editor/outputs
+      LOCAL_PRIVATE_DELIVERY_ROOT: /tmp/ai-video-editor/delivered
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,6 +49,8 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    volumes:
+      - output-staging:/tmp/ai-video-editor
 
   worker:
     build:
@@ -55,11 +60,15 @@ services:
       - ../../.env
     environment:
       API_BASE_URL: http://api:8000
+      VIDEO_TEMP_ROOT: /tmp/ai-video-editor
+      OUTPUT_STORAGE_PROVIDER: ${OUTPUT_STORAGE_PROVIDER:-drive}
     depends_on:
       - redis
     read_only: true
     tmpfs:
       - /tmp:size=4g,mode=1777
+    volumes:
+      - output-staging:/tmp/ai-video-editor
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -90,3 +99,4 @@ services:
 volumes:
   postgres-data:
   n8n-data:
+  output-staging:

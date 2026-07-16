@@ -22,8 +22,17 @@
 - Use OAuth.
 - Default to `https://www.googleapis.com/auth/drive.readonly`.
 - Download only authorized files from the selected folder.
+- Use a separate explicit write-capable OAuth scope only when Drive output delivery is enabled.
+- Keep `GOOGLE_DRIVE_OUTPUT_FOLDER_ID` private and access-controlled.
 - Store Drive file identifiers and checksums as metadata, not raw public URLs.
 - Store encrypted tokens only if refresh access is required.
+
+## S3 Output Delivery
+
+- Use a private bucket with public access blocked.
+- Use SSE-S3 or KMS encryption for rendered outputs.
+- Grant the API only `PutObject` to the configured `S3_PREFIX`.
+- Keep delivered locators in the `s3://private/` namespace and never expose public object URLs.
 
 ## Media Handling
 
@@ -34,6 +43,7 @@
 - Use the internal scan endpoint to stream private media bytes to ClamAV before analysis.
 - Store source and output media privately with encryption at rest.
 - Use short-lived signed URLs only for temporary internal access.
+- Mount shared render staging only between the worker and API delivery path.
 - Cleanup temporary files after each job.
 
 ## Runtime

@@ -15,10 +15,17 @@
 3. Validate timeline JSON against `packages/shared/schemas/timeline.schema.json`.
 4. Requeue only after confirming media locators are private and malware scan status is clean.
 
+## Incident: Failed Output Delivery
+
+1. Check `output_videos.delivery_status` and `delivery_json.details`.
+2. Confirm the staged `file://private/...` locator resolves under `OUTPUT_DELIVERY_LOCAL_ROOT`.
+3. For Drive, verify the connected OAuth token has write scope and `GOOGLE_DRIVE_OUTPUT_FOLDER_ID` is private.
+4. For S3, verify `S3_BUCKET`, `S3_REGION`, `S3_PREFIX`, and encryption settings.
+5. Retry delivery only after confirming the destination locator will remain private.
+
 ## Maintenance: Temporary Media Cleanup
 
 1. Stop accepting new jobs.
 2. Allow active render jobs to finish or timeout.
 3. Delete expired temp directories by project/job ID.
-4. Verify no output locator points to temporary storage.
-
+4. Verify delivered output locators point to Drive, `s3://private/`, or private local storage before deleting staged files.
