@@ -51,3 +51,16 @@ jobs:
       - name: Build web
         working-directory: apps/web
         run: npm run build
+
+  infra-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Docker Compose config
+        run: |
+          cp .env.example .env
+          docker compose -f infra/docker/docker-compose.yml config >/tmp/compose-config.yml
+          rm .env
+      - name: Validate Kubernetes YAML
+        run: |
+          ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_stream(File.read(f)); puts "ok #{f}" }' infra/k8s/*.yaml
