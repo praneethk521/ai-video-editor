@@ -300,6 +300,127 @@ def test_output_delivery_failure_is_recorded_and_retryable(client, auth_headers,
     assert retried_output["delivery"]["status"] == "delivered"
 
 
+def test_local_private_smoke_workflow_project_to_delivery(client, auth_headers, monkeypatch, tmp_path: Path):
+    staging_root = tmp_path / "staging"
+    delivered_root = tmp_path / "delivered"
+    monkeypatch.setattr(settings, "output_delivery_local_root", str(staging_root))
+    monkeypatch.setattr(settings, "local_private_delivery_root", str(delivered_root))
+
+    project = client.post("/projects", json={"name": "Local smoke edit"}, headers=auth_headers).json()
+    project_id = project["id"]
+    ingested = client.post(
+        f"/projects/{project_id}/ingest",
+        json={
+            "assets": [
+                {
+                    "filename": "hero clip.mp4",
+                    "mime_type": "video/mp4",
+                    "size_bytes": 123456,
+                    "duration_seconds": 12,
+                    "orientation": "landscape",
+                    "private_locator": "drive://private-smoke-folder/hero-clip",
+                }
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert ingested.status_code == 200
+    media_asset_id = ingested.json()["accepted_asset_ids"][0]
+
+    scan = client.post(
+        f"/internal/media-assets/{media_asset_id}/malware-scan",
+        json={"status": "clean", "scanner": "local-smoke", "details": {"mode": "synthetic"}},
+        headers=auth_headers,
+    )
+    assert scan.status_code == 204
+
+    analyzed = client.post(f"/projects/{project_id}/analyze", headers=auth_headers)
+    assert analyzed.status_code == 200
+    assert len(analyzed.json()["timeline_plan_ids"]) == 2
+
+    for plan_id in analyzed.json()["timeline_plan_ids"]:
+        approved = client.post(
+            f"/projects/{project_id}/plans/{plan_id}/approve",
+            json={"notes": "Approved for local smoke test."},
+            headers=auth_headers,
+        )
+        assert approved.status_code == 200
+
+    rendered = client.post(
+        f"/projects/{project_id}/render",
+        json={"variants": ["youtube_16x9", "shorts_9x16"]},
+        headers=auth_headers,
+    )
+    assert rendered.status_code == 200
+    assert len(rendered.json()["render_job_ids"]) == 2
+
+    status_response = client.get(f"/projects/{project_id}/status", headers=auth_headers)
+    assert status_response.status_code == 200
+    assert status_response.json()["status"] == "rendering"
+    assert {job["variant"] for job in status_response.json()["render_jobs"]} == {"youtube_16x9", "shorts_9x16"}
+
+    for job in status_response.json()["render_jobs"]:
+        staged_path = staging_root / project_id / f"{job['variant']}.mp4"
+        staged_path.parent.mkdir(parents=True, exist_ok=True)
+        staged_path.write_bytes(b"private rendered bytes")
+
+        running = client.post(f"/internal/render-jobs/{job['id']}/running", headers=auth_headers)
+        assert running.status_code == 204
+
+        width, height = (1920, 1080) if job["variant"] == "youtube_16x9" else (1080, 1920)
+        completed = client.post(
+            f"/internal/render-jobs/{job['id']}/complete",
+            json={
+                "variant": job["variant"],
+                "private_locator": f"file://private/{project_id}/{job['variant']}.mp4",
+                "width": width,
+                "height": height,
+                "duration_seconds": 12,
+                "file_size_bytes": staged_path.stat().st_size,
+                "upload_package": {
+                    "manual_upload_only": True,
+                    "delivery_target": "local_private",
+                    "delivery_status": "private_staging",
+                },
+                "validation": {"status": "passed", "checks": {"local_smoke": True}},
+            },
+            headers=auth_headers,
+        )
+        assert completed.status_code == 204
+
+    ready = client.get(f"/projects/{project_id}/status", headers=auth_headers)
+    assert ready.status_code == 200
+    assert ready.json()["status"] == "ready"
+
+    outputs = client.get(f"/projects/{project_id}/outputs", headers=auth_headers)
+    assert outputs.status_code == 200
+    assert len(outputs.json()["outputs"]) == 2
+    assert {output["delivery"]["target"] for output in outputs.json()["outputs"]} == {"local_private"}
+    assert {output["delivery"]["status"] for output in outputs.json()["outputs"]} == {"private_staging"}
+    assert all(output["upload_package"]["manual_upload_only"] is True for output in outputs.json()["outputs"])
+    assert {output["validation"]["status"] for output in outputs.json()["outputs"]} == {"passed"}
+
+    for output in outputs.json()["outputs"]:
+        delivered = client.post(
+            f"/internal/output-videos/{output['id']}/deliver",
+            json={"target": "local_private"},
+            headers=auth_headers,
+        )
+        assert delivered.status_code == 204
+
+    delivered_outputs = client.get(f"/projects/{project_id}/outputs", headers=auth_headers)
+    assert delivered_outputs.status_code == 200
+    assert {output["delivery"]["status"] for output in delivered_outputs.json()["outputs"]} == {"delivered"}
+    assert all(
+        output["delivery"]["delivered_locator"].startswith("file://private/delivered/")
+        for output in delivered_outputs.json()["outputs"]
+    )
+    delivered_filenames = sorted(path.name for path in delivered_root.rglob("*.mp4"))
+    assert len(delivered_filenames) == 2
+    assert any(name.startswith("shorts_9x16-") for name in delivered_filenames)
+    assert any(name.startswith("youtube_16x9-") for name in delivered_filenames)
+
+
 def test_rejects_public_media_urls_and_path_traversal(client, auth_headers):
     project = client.post("/projects", json={"name": "Secure ingest"}, headers=auth_headers).json()
     response = client.post(

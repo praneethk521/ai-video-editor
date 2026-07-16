@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-07-08
+Last updated: 2026-07-16
 
 ## Completed
 
@@ -43,14 +43,16 @@ Last updated: 2026-07-08
 - Added opt-in automatic output delivery on successful render completion.
 - Added dashboard delivery controls for completed private outputs.
 - Added delivery failure recording, retry support, and dashboard error details.
+- Added end-to-end local smoke workflow documentation for project creation through private delivery.
+- Added automated smoke coverage for the private delivery lifecycle.
 
 ## Verification
 
-- API tests: passed locally (`16 passed`).
+- API tests: passed locally (`17 passed`).
 - Worker tests: passed locally (`4 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Add end-to-end local smoke workflow documentation for project creation through private delivery.
+- Add lifecycle cleanup for staged output files after confirmed private delivery.
