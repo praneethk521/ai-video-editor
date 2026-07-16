@@ -5,11 +5,17 @@ from sqlalchemy.orm import Session
 
 from app.core.security import CurrentUser, get_current_user
 from app.db.session import get_db
-from app.schemas.api import MalwareScanResultRequest, OutputDeliveryRequest, WorkerRenderCompleteRequest, WorkerRenderFailedRequest
+from app.schemas.api import (
+    MalwareScanResultRequest,
+    OutputDeliverRequest,
+    OutputDeliveryRequest,
+    WorkerRenderCompleteRequest,
+    WorkerRenderFailedRequest,
+)
 from app.services.audit import audit
 from app.services.analysis_providers import get_analysis_provider, get_analysis_provider_metrics
 from app.services.malware import record_malware_scan_result, scan_media_asset
-from app.services.output_delivery import record_output_delivery
+from app.services.output_delivery import deliver_output_video, record_output_delivery
 from app.services.rendering import complete_render_job, fail_render_job, mark_render_job_running
 
 router = APIRouter(prefix="/internal", tags=["internal"])
@@ -206,6 +212,30 @@ def output_video_delivery(
         user_id=user.id,
         project_id=output.project_id,
         action="output.delivery.recorded",
+        correlation_id=request.state.correlation_id,
+        metadata={"output_video_id": output.id, "target": output.delivery_target, "status": output.delivery_status},
+    )
+    db.commit()
+    return None
+
+
+@router.post("/output-videos/{output_video_id}/deliver", status_code=status.HTTP_204_NO_CONTENT)
+def output_video_deliver(
+    output_video_id: str,
+    payload: OutputDeliverRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    try:
+        output = deliver_output_video(db, output_video_id=output_video_id, target=payload.target)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    audit(
+        db,
+        user_id=user.id,
+        project_id=output.project_id,
+        action="output.delivery.completed",
         correlation_id=request.state.correlation_id,
         metadata={"output_video_id": output.id, "target": output.delivery_target, "status": output.delivery_status},
     )

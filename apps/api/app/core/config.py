@@ -19,7 +19,9 @@ class Settings(BaseSettings):
     google_oauth_authorize_url: str = "https://accounts.google.com/o/oauth2/v2/auth"
     google_oauth_token_url: str = "https://oauth2.googleapis.com/token"
     google_drive_files_url: str = "https://www.googleapis.com/drive/v3/files"
+    google_drive_upload_url: str = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
     google_drive_download_url: str = "https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
+    google_drive_output_folder_id: str = ""
     google_drive_scopes: str = "https://www.googleapis.com/auth/drive.readonly"
     token_encryption_key: str = Field(default="", repr=False)
     malware_scanner_backend: str = "clamav"
@@ -47,6 +49,12 @@ class Settings(BaseSettings):
         "audio/wav",
     }
     output_storage_provider: str = "drive"
+    output_delivery_local_root: str = "/tmp/ai-video-editor/outputs"
+    local_private_delivery_root: str = "/tmp/ai-video-editor/delivered"
+    s3_bucket: str = ""
+    s3_region: str = "us-east-1"
+    s3_prefix: str = "ai-video-editor/outputs"
+    media_encryption_kms_key_id: str = ""
 
 
 settings = Settings()

@@ -122,6 +122,10 @@ class OutputDeliveryRequest(BaseModel):
     details: dict = Field(default_factory=dict)
 
 
+class OutputDeliverRequest(BaseModel):
+    target: str | None = Field(default=None, max_length=32)
+
+
 class MalwareScanResultRequest(BaseModel):
     status: str
     scanner: str = Field(default="manual")

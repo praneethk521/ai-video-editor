@@ -41,7 +41,7 @@ Status: In progress
 - Captions, transitions, audio normalization, vertical subject crop.
 - Output validation for resolution, duration, audio stream, subtitles, black-frame signals, delivery target, and corruption.
 - Private Drive/S3 output delivery state recording.
-- Real Drive/S3 upload adapters.
+- Real Drive/S3/local private output delivery adapters.
 
 ## M4 - Production Hardening
 

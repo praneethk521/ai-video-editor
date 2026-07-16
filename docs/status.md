@@ -36,14 +36,15 @@ Last updated: 2026-07-08
 - Added internal analysis provider metrics for requests, retries, failures, health checks, circuit opens, and latency.
 - Added render validation signals for embedded subtitles, planned captions, black frames, and private delivery targets.
 - Added private output delivery state recording for Drive, S3, and local private locators.
+- Added real Drive, S3, and local private output delivery adapters for staged private render files.
 
 ## Verification
 
-- API tests: passed locally (`12 passed`).
+- API tests: passed locally (`14 passed`).
 - Worker tests: passed locally (`4 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Add real Drive/S3 upload adapters behind the private output delivery state flow.
+- Add production deployment wiring for output delivery credentials and worker/API shared staging storage.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -157,6 +158,95 @@ def test_project_lifecycle_keeps_private_media(client, auth_headers):
     assert delivered_output["delivery"]["delivered_locator"].startswith("drive://private-output-folder/")
 
 
+def test_s3_output_delivery_uploads_private_staged_file(client, auth_headers, monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(settings, "output_delivery_local_root", str(tmp_path))
+    monkeypatch.setattr(settings, "s3_bucket", "private-video-bucket")
+    monkeypatch.setattr(settings, "s3_region", "us-east-1")
+    monkeypatch.setattr(settings, "s3_prefix", "renders")
+    project = client.post("/projects", json={"name": "S3 Delivery"}, headers=auth_headers).json()
+    output = create_completed_output(client, auth_headers, project["id"], tmp_path)
+    uploaded = {}
+
+    class FakeS3Client:
+        def put_object(self, **kwargs):
+            uploaded.update(kwargs)
+            uploaded["Body"] = kwargs["Body"].read()
+
+    monkeypatch.setattr("app.services.output_delivery._s3_client", lambda: FakeS3Client())
+
+    delivered = client.post(
+        f"/internal/output-videos/{output['id']}/deliver",
+        json={"target": "s3"},
+        headers=auth_headers,
+    )
+    assert delivered.status_code == 204
+    assert uploaded["Bucket"] == "private-video-bucket"
+    assert uploaded["Key"].startswith(f"renders/{project['id']}/")
+    assert uploaded["Body"] == b"private rendered bytes"
+    assert uploaded["ServerSideEncryption"] == "AES256"
+
+    outputs = client.get(f"/projects/{project['id']}/outputs", headers=auth_headers)
+    delivered_output = outputs.json()["outputs"][0]
+    assert delivered_output["delivery"]["status"] == "delivered"
+    assert delivered_output["delivery"]["delivered_locator"].startswith("s3://private/private-video-bucket/renders/")
+
+
+def test_drive_output_delivery_uploads_with_connected_oauth(client, auth_headers, monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(settings, "output_delivery_local_root", str(tmp_path))
+    monkeypatch.setattr(settings, "google_client_id", "client-id")
+    monkeypatch.setattr(settings, "google_client_secret", "client-secret")
+    monkeypatch.setattr(settings, "google_drive_output_folder_id", "private-output-folder")
+
+    class FakeTokenResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"access_token": "drive-upload-token", "refresh_token": "refresh-token", "expires_in": 3600}
+
+    monkeypatch.setattr("app.services.media.httpx.post", lambda url, data, timeout: FakeTokenResponse())
+    project = client.post("/projects", json={"name": "Drive Delivery"}, headers=auth_headers).json()
+    connected = client.post(
+        f"/projects/{project['id']}/connect-drive",
+        json={"folder_url": "https://drive.google.com/drive/folders/source-folder"},
+        headers=auth_headers,
+    )
+    state = parse_qs(urlparse(connected.json()["authorization_url"]).query)["state"][0]
+    callback = client.get(f"/projects/{project['id']}/connect-drive/callback", params={"code": "oauth-code", "state": state})
+    assert callback.status_code == 200
+    output = create_completed_output(client, auth_headers, project["id"], tmp_path)
+    uploaded = {}
+
+    class FakeUploadResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"id": "uploaded-drive-file"}
+
+    def fake_upload(url, headers, content, timeout):
+        uploaded.update({"url": url, "headers": headers, "content": content, "timeout": timeout})
+        return FakeUploadResponse()
+
+    monkeypatch.setattr("app.services.output_delivery.httpx.post", fake_upload)
+
+    delivered = client.post(
+        f"/internal/output-videos/{output['id']}/deliver",
+        json={"target": "drive"},
+        headers=auth_headers,
+    )
+    assert delivered.status_code == 204
+    assert uploaded["url"] == settings.google_drive_upload_url
+    assert uploaded["headers"]["Authorization"] == "Bearer drive-upload-token"
+    assert b"private-output-folder" in uploaded["content"]
+    assert b"private rendered bytes" in uploaded["content"]
+
+    outputs = client.get(f"/projects/{project['id']}/outputs", headers=auth_headers)
+    delivered_output = outputs.json()["outputs"][0]
+    assert delivered_output["delivery"]["status"] == "delivered"
+    assert delivered_output["delivery"]["delivered_locator"] == "drive://private-output-folder/uploaded-drive-file"
+
+
 def test_rejects_public_media_urls_and_path_traversal(client, auth_headers):
     project = client.post("/projects", json={"name": "Secure ingest"}, headers=auth_headers).json()
     response = client.post(
@@ -174,6 +264,61 @@ def test_rejects_public_media_urls_and_path_traversal(client, auth_headers):
         headers=auth_headers,
     )
     assert response.status_code == 422
+
+
+def create_completed_output(client, auth_headers, project_id: str, local_root: Path) -> dict:
+    ingested = client.post(
+        f"/projects/{project_id}/ingest",
+        json={
+            "assets": [
+                {
+                    "filename": "clip.mp4",
+                    "mime_type": "video/mp4",
+                    "size_bytes": 123,
+                    "duration_seconds": 5,
+                    "private_locator": "drive://private-folder-id/clip",
+                }
+            ]
+        },
+        headers=auth_headers,
+    )
+    media_asset_id = ingested.json()["accepted_asset_ids"][0]
+    scan = client.post(
+        f"/internal/media-assets/{media_asset_id}/malware-scan",
+        json={"status": "clean", "scanner": "unit-test", "details": {}},
+        headers=auth_headers,
+    )
+    assert scan.status_code == 204
+    analyzed = client.post(f"/projects/{project_id}/analyze", headers=auth_headers)
+    assert analyzed.status_code == 200
+    for plan_id in analyzed.json()["timeline_plan_ids"]:
+        approved = client.post(f"/projects/{project_id}/plans/{plan_id}/approve", json={"notes": None}, headers=auth_headers)
+        assert approved.status_code == 200
+    rendered = client.post(f"/projects/{project_id}/render", json={"variants": ["youtube_16x9"]}, headers=auth_headers)
+    assert rendered.status_code == 200
+    status_response = client.get(f"/projects/{project_id}/status", headers=auth_headers)
+    job = status_response.json()["render_jobs"][0]
+    staged_path = local_root / project_id / f"{job['variant']}.mp4"
+    staged_path.parent.mkdir(parents=True, exist_ok=True)
+    staged_path.write_bytes(b"private rendered bytes")
+    completed = client.post(
+        f"/internal/render-jobs/{job['id']}/complete",
+        json={
+            "variant": job["variant"],
+            "private_locator": f"file://private/{project_id}/{job['variant']}.mp4",
+            "width": 1920,
+            "height": 1080,
+            "duration_seconds": 5,
+            "file_size_bytes": staged_path.stat().st_size,
+            "upload_package": {"manual_upload_only": True, "delivery_target": "drive", "delivery_status": "private_staging"},
+            "validation": {"status": "passed", "checks": {"ffprobe": True}},
+        },
+        headers=auth_headers,
+    )
+    assert completed.status_code == 204
+    outputs = client.get(f"/projects/{project_id}/outputs", headers=auth_headers)
+    assert outputs.status_code == 200
+    return outputs.json()["outputs"][0]
 
 
 def test_requires_authentication(client):

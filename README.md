@@ -48,12 +48,14 @@ The current executable slice supports:
 - Validate rendered outputs with ffprobe, subtitle signals, black-frame scan signals, and private delivery targets.
 - Register private output metadata.
 - Record private output delivery state for Drive, S3, or local private targets.
+- Deliver staged private outputs to Google Drive, private S3, or local private storage adapters.
 - Audit user actions without logging secrets, tokens, public URLs, or file contents.
 
 ## Security Defaults
 
 - No real `.env` files are committed.
 - OAuth scope defaults to Google Drive read-only.
+- Drive output delivery requires an OAuth token with write permission and a private output folder.
 - Public media URLs are rejected.
 - Filenames are sanitized and path traversal is blocked.
 - Upload types and sizes are validated before metadata persistence.
