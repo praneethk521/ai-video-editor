@@ -8,5 +8,5 @@ redis==5.2.1
 rq==2.1.0
 cryptography==44.0.0
 structlog==24.4.0
-orjson==3.10.12
+orjson==3.11.9
 boto3==1.34.162
