@@ -200,6 +200,8 @@ The final output response should show:
 - `delivery.status` set to `delivered`
 - delivered locators beginning with `file://private/delivered/`
 
+To also validate staged source cleanup, set `CLEANUP_STAGED_OUTPUTS_AFTER_DELIVERY=true` in `.env`, restart the API container, rerun the workflow, and confirm each output includes `delivery.details.staged_source_cleanup.status` as `deleted`.
+
 Confirm the private files exist inside the local private delivery root:
 
 ```bash

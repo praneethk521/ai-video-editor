@@ -305,6 +305,7 @@ def test_local_private_smoke_workflow_project_to_delivery(client, auth_headers, 
     delivered_root = tmp_path / "delivered"
     monkeypatch.setattr(settings, "output_delivery_local_root", str(staging_root))
     monkeypatch.setattr(settings, "local_private_delivery_root", str(delivered_root))
+    monkeypatch.setattr(settings, "cleanup_staged_outputs_after_delivery", True)
 
     project = client.post("/projects", json={"name": "Local smoke edit"}, headers=auth_headers).json()
     project_id = project["id"]
@@ -419,6 +420,11 @@ def test_local_private_smoke_workflow_project_to_delivery(client, auth_headers, 
     assert len(delivered_filenames) == 2
     assert any(name.startswith("shorts_9x16-") for name in delivered_filenames)
     assert any(name.startswith("youtube_16x9-") for name in delivered_filenames)
+    assert not any(staging_root.rglob("*.mp4"))
+    assert all(
+        output["delivery"]["details"]["staged_source_cleanup"]["status"] == "deleted"
+        for output in delivered_outputs.json()["outputs"]
+    )
 
 
 def test_rejects_public_media_urls_and_path_traversal(client, auth_headers):

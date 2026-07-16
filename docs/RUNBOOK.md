@@ -29,3 +29,4 @@
 2. Allow active render jobs to finish or timeout.
 3. Delete expired temp directories by project/job ID.
 4. Verify delivered output locators point to Drive, `s3://private/`, or private local storage before deleting staged files.
+5. For automatic staged-file cleanup, enable `CLEANUP_STAGED_OUTPUTS_AFTER_DELIVERY=true` and verify `delivery_json.staged_source_cleanup.status` is `deleted`.

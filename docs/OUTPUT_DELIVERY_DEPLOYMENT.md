@@ -110,4 +110,6 @@ For S3 delivery, prefer workload identity/OIDC over static AWS keys. If static k
 4. Verify `/projects/{project_id}/outputs` shows `delivery.status = delivered`.
 5. Cleanup staged files only after delivered locators point to Drive, `s3://private/`, or local private storage.
 
+Set `CLEANUP_STAGED_OUTPUTS_AFTER_DELIVERY=true` to let the API remove the staged `file://private/...` source file after a delivery adapter succeeds. Keep it disabled when operators need to inspect staged render files after delivery.
+
 Set `AUTO_DELIVER_OUTPUTS=true` only when the API can read the shared staging volume and the selected delivery target has working credentials. Leave it `false` when n8n or another orchestrator should decide when to deliver.

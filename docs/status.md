@@ -45,6 +45,7 @@ Last updated: 2026-07-16
 - Added delivery failure recording, retry support, and dashboard error details.
 - Added end-to-end local smoke workflow documentation for project creation through private delivery.
 - Added automated smoke coverage for the private delivery lifecycle.
+- Added optional staged output cleanup after confirmed private delivery.
 
 ## Verification
 
@@ -55,4 +56,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add lifecycle cleanup for staged output files after confirmed private delivery.
+- Add retention policy documentation for delivered local private output artifacts.

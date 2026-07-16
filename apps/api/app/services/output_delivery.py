@@ -60,7 +60,7 @@ def deliver_output_video(db: Session, *, output_video_id: str, target: str | Non
     else:
         result = deliver_to_local_private(output=output, source_path=source_path)
 
-    return record_output_delivery(
+    delivered_output = record_output_delivery(
         db,
         output_video_id=output_video_id,
         target=result.target,
@@ -68,6 +68,13 @@ def deliver_output_video(db: Session, *, output_video_id: str, target: str | Non
         delivered_locator=result.delivered_locator,
         details=result.details,
     )
+    if settings.cleanup_staged_outputs_after_delivery:
+        append_delivery_lifecycle_detail(
+            delivered_output,
+            "staged_source_cleanup",
+            cleanup_staged_output_source(source_path=source_path),
+        )
+    return delivered_output
 
 
 def record_output_delivery_failure(
@@ -121,6 +128,23 @@ def record_output_delivery(
         "details": details,
     }
     return output
+
+
+def append_delivery_lifecycle_detail(output: OutputVideo, key: str, detail: dict) -> None:
+    output.delivery_json = {
+        **(output.delivery_json or {}),
+        key: detail,
+    }
+
+
+def cleanup_staged_output_source(*, source_path: Path) -> dict:
+    try:
+        if not source_path.exists():
+            return {"status": "skipped", "reason": "source_missing"}
+        source_path.unlink()
+        return {"status": "deleted"}
+    except OSError as exc:
+        return {"status": "failed", "error": str(exc)[:1000]}
 
 
 def resolve_private_file_locator(locator: str) -> Path:
