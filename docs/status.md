@@ -41,6 +41,7 @@ Last updated: 2026-07-08
 - Added CI validation for Docker Compose and Kubernetes manifests.
 - Added production output delivery deployment notes for Drive write scopes, S3 IAM, and shared staging storage.
 - Added opt-in automatic output delivery on successful render completion.
+- Added dashboard delivery controls for completed private outputs.
 
 ## Verification
 
@@ -51,4 +52,4 @@ Last updated: 2026-07-08
 
 ## Next
 
-- Add surfaced delivery controls and auto-delivery state to the dashboard workflow.
+- Add delivery failure retry UX and operator-facing delivery error details.

@@ -10,6 +10,7 @@ import {
   Play,
   RefreshCw,
   ShieldCheck,
+  UploadCloud,
   XCircle
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -262,8 +263,23 @@ export default function Page() {
 
   async function loadOutputs() {
     await run("Outputs loaded", async () => {
-      const response = await api<{ outputs: OutputVideo[] }>(`/projects/${projectId}/outputs`);
-      setOutputs(response.outputs);
+      await refreshOutputs();
+    });
+  }
+
+  async function refreshOutputs() {
+    if (!projectId) return;
+    const response = await api<{ outputs: OutputVideo[] }>(`/projects/${projectId}/outputs`);
+    setOutputs(response.outputs);
+  }
+
+  async function deliverOutput(output: OutputVideo) {
+    await run("Output delivery triggered", async () => {
+      await api(`/internal/output-videos/${output.id}/deliver`, {
+        method: "POST",
+        body: JSON.stringify({ target: output.delivery?.target ?? "drive" })
+      });
+      await refreshOutputs();
     });
   }
 
@@ -491,6 +507,14 @@ export default function Page() {
                   <span className={`pill ${output.delivery?.status ?? "private_staging"}`}>
                     {output.delivery?.target ?? "delivery"} · {output.delivery?.status ?? "private staging"}
                   </span>
+                  <button
+                    className="ghost"
+                    onClick={() => void deliverOutput(output)}
+                    disabled={busy !== null || output.delivery?.status === "delivered"}
+                  >
+                    <UploadCloud size={16} />
+                    Deliver
+                  </button>
                 </div>
               ))}
               {outputs.length === 0 ? <div className="emptyState">No outputs</div> : null}
