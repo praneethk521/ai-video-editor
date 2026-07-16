@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     output_storage_provider: str = "drive"
     auto_deliver_outputs: bool = False
     cleanup_staged_outputs_after_delivery: bool = False
+    delivered_output_retention_days: int = 30
+    delivered_output_retention_policy: str = "manual_upload_private_output"
     output_delivery_local_root: str = "/tmp/ai-video-editor/outputs"
     local_private_delivery_root: str = "/tmp/ai-video-editor/delivered"
     s3_bucket: str = ""

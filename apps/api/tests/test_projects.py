@@ -184,11 +184,16 @@ def test_s3_output_delivery_uploads_private_staged_file(client, auth_headers, mo
     assert uploaded["Key"].startswith(f"renders/{project['id']}/")
     assert uploaded["Body"] == b"private rendered bytes"
     assert uploaded["ServerSideEncryption"] == "AES256"
+    s3_tags = parse_qs(uploaded["Tagging"])
+    assert s3_tags["privacy"] == ["private"]
+    assert s3_tags["retention_policy"] == ["manual_upload_private_output"]
+    assert s3_tags["retention_days"] == ["30"]
 
     outputs = client.get(f"/projects/{project['id']}/outputs", headers=auth_headers)
     delivered_output = outputs.json()["outputs"][0]
     assert delivered_output["delivery"]["status"] == "delivered"
     assert delivered_output["delivery"]["delivered_locator"].startswith("s3://private/private-video-bucket/renders/")
+    assert delivered_output["delivery"]["details"]["details"]["retention"]["privacy"] == "private"
 
 
 def test_drive_output_delivery_uploads_with_connected_oauth(client, auth_headers, monkeypatch, tmp_path: Path):
@@ -239,6 +244,8 @@ def test_drive_output_delivery_uploads_with_connected_oauth(client, auth_headers
     assert uploaded["url"] == settings.google_drive_upload_url
     assert uploaded["headers"]["Authorization"] == "Bearer drive-upload-token"
     assert b"private-output-folder" in uploaded["content"]
+    assert b"appProperties" in uploaded["content"]
+    assert b"manual_upload_private_output" in uploaded["content"]
     assert b"private rendered bytes" in uploaded["content"]
 
     outputs = client.get(f"/projects/{project['id']}/outputs", headers=auth_headers)
@@ -420,9 +427,14 @@ def test_local_private_smoke_workflow_project_to_delivery(client, auth_headers, 
     assert len(delivered_filenames) == 2
     assert any(name.startswith("shorts_9x16-") for name in delivered_filenames)
     assert any(name.startswith("youtube_16x9-") for name in delivered_filenames)
+    assert len(list(delivered_root.rglob("*.retention.json"))) == 2
     assert not any(staging_root.rglob("*.mp4"))
     assert all(
         output["delivery"]["details"]["staged_source_cleanup"]["status"] == "deleted"
+        for output in delivered_outputs.json()["outputs"]
+    )
+    assert all(
+        output["delivery"]["details"]["details"]["retention"]["retention_days"] == "30"
         for output in delivered_outputs.json()["outputs"]
     )
 

@@ -43,6 +43,14 @@ Delivered outputs are the private manual-upload package. Do not delete them unti
 
 For local private delivery, store `LOCAL_PRIVATE_DELIVERY_ROOT` on encrypted storage outside the repository and outside consumer sync tools. For S3, configure a lifecycle expiration rule on `S3_PREFIX`. For Drive, use a restricted output folder with a periodic owner review.
 
+Delivery adapters attach machine-readable retention metadata:
+
+- Drive: file `appProperties`
+- S3: object tags
+- local private storage: sibling `.retention.json` sidecar
+
+Set `DELIVERED_OUTPUT_RETENTION_DAYS` and `DELIVERED_OUTPUT_RETENTION_POLICY` to match the operator policy.
+
 ## Deletion Procedure
 
 1. Export or review `/projects/{project_id}/outputs`.

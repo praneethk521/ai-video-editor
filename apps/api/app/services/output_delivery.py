@@ -5,7 +5,9 @@ import mimetypes
 import shutil
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlencode
 from uuid import uuid4
 
 import httpx
@@ -147,6 +149,17 @@ def cleanup_staged_output_source(*, source_path: Path) -> dict:
         return {"status": "failed", "error": str(exc)[:1000]}
 
 
+def retention_metadata() -> dict[str, str]:
+    retention_days = max(1, settings.delivered_output_retention_days)
+    delete_after = (datetime.now(timezone.utc) + timedelta(days=retention_days)).date().isoformat()
+    return {
+        "privacy": "private",
+        "retention_policy": settings.delivered_output_retention_policy,
+        "retention_days": str(retention_days),
+        "delete_after": delete_after,
+    }
+
+
 def resolve_private_file_locator(locator: str) -> Path:
     validate_private_locator(locator)
     prefix = "file://private/"
@@ -177,7 +190,8 @@ def deliver_to_drive(db: Session, *, output: OutputVideo, source_path: Path) -> 
         raise ValueError("Drive output folder id is missing")
 
     file_name = f"{output.variant}-{output.id}.mp4"
-    metadata = {"name": file_name, "parents": [folder_id]}
+    retention = retention_metadata()
+    metadata = {"name": file_name, "parents": [folder_id], "appProperties": retention}
     content_type = mimetypes.guess_type(source_path.name)[0] or "application/octet-stream"
     body, boundary = build_drive_multipart_body(metadata=metadata, source_path=source_path, content_type=content_type)
     response = httpx.post(
@@ -198,7 +212,7 @@ def deliver_to_drive(db: Session, *, output: OutputVideo, source_path: Path) -> 
         target="drive",
         status="delivered",
         delivered_locator=f"drive://{folder_id}/{drive_file_id}",
-        details={"provider": "google_drive", "drive_file_id": drive_file_id, "folder_id": folder_id},
+        details={"provider": "google_drive", "drive_file_id": drive_file_id, "folder_id": folder_id, "retention": retention},
     )
 
 
@@ -231,6 +245,8 @@ def deliver_to_s3(*, output: OutputVideo, source_path: Path) -> DeliveryResult:
         "Key": key,
         "ContentType": mimetypes.guess_type(source_path.name)[0] or "application/octet-stream",
     }
+    retention = retention_metadata()
+    extra_args["Tagging"] = urlencode(retention)
     if settings.media_encryption_kms_key_id:
         extra_args["ServerSideEncryption"] = "aws:kms"
         extra_args["SSEKMSKeyId"] = settings.media_encryption_kms_key_id
@@ -242,7 +258,7 @@ def deliver_to_s3(*, output: OutputVideo, source_path: Path) -> DeliveryResult:
         target="s3",
         status="delivered",
         delivered_locator=f"s3://private/{settings.s3_bucket}/{key}",
-        details={"provider": "s3", "bucket": settings.s3_bucket, "key": key},
+        details={"provider": "s3", "bucket": settings.s3_bucket, "key": key, "retention": retention},
     )
 
 
@@ -266,9 +282,21 @@ def deliver_to_local_private(*, output: OutputVideo, source_path: Path) -> Deliv
     destination_dir.mkdir(parents=True, exist_ok=True)
     destination = destination_dir / f"{output.variant}-{output.id}{source_path.suffix or '.mp4'}"
     shutil.copy2(source_path, destination)
+    retention = retention_metadata()
+    delivered_locator = f"file://private/delivered/{output.project_id}/{destination.name}"
+    sidecar = destination.with_name(f"{destination.name}.retention.json")
+    sidecar.write_text(
+        json.dumps({"delivered_locator": delivered_locator, "retention": retention}, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     return DeliveryResult(
         target="local_private",
         status="delivered",
-        delivered_locator=f"file://private/delivered/{output.project_id}/{destination.name}",
-        details={"provider": "local_private", "path": str(destination)},
+        delivered_locator=delivered_locator,
+        details={
+            "provider": "local_private",
+            "path": str(destination),
+            "retention": retention,
+            "retention_sidecar": f"file://private/delivered/{output.project_id}/{sidecar.name}",
+        },
     )

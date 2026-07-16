@@ -47,6 +47,7 @@ Last updated: 2026-07-16
 - Added automated smoke coverage for the private delivery lifecycle.
 - Added optional staged output cleanup after confirmed private delivery.
 - Added retention policy documentation for delivered private output artifacts.
+- Added retention metadata and lifecycle tags to delivered output adapters.
 
 ## Verification
 
@@ -57,4 +58,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add retention metadata or lifecycle tags to delivered output adapters.
+- Add operator-facing retention status display for delivered outputs.

@@ -54,6 +54,8 @@ S3_BUCKET=<private-render-output-bucket>
 S3_REGION=us-east-1
 S3_PREFIX=ai-video-editor/outputs
 MEDIA_ENCRYPTION_KMS_KEY_ID=<optional-kms-key-id>
+DELIVERED_OUTPUT_RETENTION_DAYS=30
+DELIVERED_OUTPUT_RETENTION_POLICY=manual_upload_private_output
 ```
 
 Minimum IAM shape for API delivery:
@@ -82,6 +84,8 @@ Minimum IAM shape for API delivery:
 ```
 
 If no KMS key is configured, the adapter requests SSE-S3 (`AES256`).
+
+The S3 adapter attaches object tags for `privacy`, `retention_policy`, `retention_days`, and `delete_after`. Align bucket lifecycle rules with `DELIVERED_OUTPUT_RETENTION_DAYS`.
 
 ## Kubernetes Secrets
 
@@ -113,3 +117,5 @@ For S3 delivery, prefer workload identity/OIDC over static AWS keys. If static k
 Set `CLEANUP_STAGED_OUTPUTS_AFTER_DELIVERY=true` to let the API remove the staged `file://private/...` source file after a delivery adapter succeeds. Keep it disabled when operators need to inspect staged render files after delivery.
 
 Set `AUTO_DELIVER_OUTPUTS=true` only when the API can read the shared staging volume and the selected delivery target has working credentials. Leave it `false` when n8n or another orchestrator should decide when to deliver.
+
+Drive deliveries store retention metadata in Drive `appProperties`. Local private deliveries write a sibling `.retention.json` sidecar next to the delivered file.
