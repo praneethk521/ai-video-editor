@@ -94,3 +94,4 @@ pytest
 - Current implementation status: `docs/status.md`
 - Output delivery deployment: `docs/OUTPUT_DELIVERY_DEPLOYMENT.md`
 - Local smoke workflow: `docs/LOCAL_SMOKE_WORKFLOW.md`
+- Retention policy: `docs/RETENTION_POLICY.md`

@@ -45,6 +45,7 @@
 - Use short-lived signed URLs only for temporary internal access.
 - Mount shared render staging only between the worker and API delivery path.
 - Cleanup temporary files after each job.
+- Enforce retention windows for staged and delivered private outputs.
 
 ## Runtime
 

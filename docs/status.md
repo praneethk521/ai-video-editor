@@ -46,6 +46,7 @@ Last updated: 2026-07-16
 - Added end-to-end local smoke workflow documentation for project creation through private delivery.
 - Added automated smoke coverage for the private delivery lifecycle.
 - Added optional staged output cleanup after confirmed private delivery.
+- Added retention policy documentation for delivered private output artifacts.
 
 ## Verification
 
@@ -56,4 +57,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add retention policy documentation for delivered local private output artifacts.
+- Add retention metadata or lifecycle tags to delivered output adapters.
