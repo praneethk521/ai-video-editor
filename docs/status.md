@@ -39,6 +39,7 @@ Last updated: 2026-07-08
 - Added real Drive, S3, and local private output delivery adapters for staged private render files.
 - Wired Docker Compose and Kubernetes for shared render staging between worker and API delivery.
 - Added CI validation for Docker Compose and Kubernetes manifests.
+- Added production output delivery deployment notes for Drive write scopes, S3 IAM, and shared staging storage.
 
 ## Verification
 
@@ -49,4 +50,4 @@ Last updated: 2026-07-08
 
 ## Next
 
-- Add production secrets/runbook examples for Drive write scopes, S3 IAM policy, and staging PVC class.
+- Add orchestration hook to trigger private output delivery automatically after successful renders.

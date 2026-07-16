@@ -90,3 +90,4 @@ pytest
 - Product requirements: `docs/PRD.md`
 - Milestones: `docs/MILESTONES.md`
 - Current implementation status: `docs/status.md`
+- Output delivery deployment: `docs/OUTPUT_DELIVERY_DEPLOYMENT.md`
