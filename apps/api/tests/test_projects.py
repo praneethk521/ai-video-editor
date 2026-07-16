@@ -265,6 +265,41 @@ def test_render_completion_can_auto_deliver_to_local_private(client, auth_header
     assert any(delivered_root.rglob("*.mp4"))
 
 
+def test_output_delivery_failure_is_recorded_and_retryable(client, auth_headers, monkeypatch, tmp_path: Path):
+    staging_root = tmp_path / "staging"
+    delivered_root = tmp_path / "delivered"
+    monkeypatch.setattr(settings, "output_delivery_local_root", str(staging_root))
+    monkeypatch.setattr(settings, "local_private_delivery_root", str(delivered_root))
+    project = client.post("/projects", json={"name": "Retry Delivery"}, headers=auth_headers).json()
+    output = create_completed_output(client, auth_headers, project["id"], staging_root, delivery_target="local_private")
+    staged_path = staging_root / project["id"] / "youtube_16x9.mp4"
+    staged_path.unlink()
+
+    failed = client.post(
+        f"/internal/output-videos/{output['id']}/deliver",
+        json={"target": "local_private"},
+        headers=auth_headers,
+    )
+    assert failed.status_code == 422
+
+    failed_outputs = client.get(f"/projects/{project['id']}/outputs", headers=auth_headers)
+    failed_output = failed_outputs.json()["outputs"][0]
+    assert failed_output["delivery"]["status"] == "failed"
+    assert failed_output["delivery"]["details"]["details"]["phase"] == "manual_delivery"
+    assert "staged output file is missing" in failed_output["delivery"]["details"]["details"]["error"]
+
+    staged_path.write_bytes(b"private rendered bytes")
+    retried = client.post(
+        f"/internal/output-videos/{output['id']}/deliver",
+        json={"target": "local_private"},
+        headers=auth_headers,
+    )
+    assert retried.status_code == 204
+    retried_outputs = client.get(f"/projects/{project['id']}/outputs", headers=auth_headers)
+    retried_output = retried_outputs.json()["outputs"][0]
+    assert retried_output["delivery"]["status"] == "delivered"
+
+
 def test_rejects_public_media_urls_and_path_traversal(client, auth_headers):
     project = client.post("/projects", json={"name": "Secure ingest"}, headers=auth_headers).json()
     response = client.post(

@@ -70,6 +70,27 @@ def deliver_output_video(db: Session, *, output_video_id: str, target: str | Non
     )
 
 
+def record_output_delivery_failure(
+    db: Session,
+    *,
+    output_video_id: str,
+    target: str | None,
+    error_message: str,
+    phase: str,
+) -> OutputVideo | None:
+    output = db.get(OutputVideo, output_video_id)
+    if output is None:
+        return None
+    return record_output_delivery(
+        db,
+        output_video_id=output_video_id,
+        target=target or output.delivery_target,
+        status="failed",
+        delivered_locator=None,
+        details={"error": error_message[:1000], "phase": phase},
+    )
+
+
 def record_output_delivery(
     db: Session,
     *,

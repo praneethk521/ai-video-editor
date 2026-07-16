@@ -145,9 +145,18 @@ def complete_render_job(db: Session, *, render_job_id: str, result) -> OutputVid
 
     db.flush()
     if settings.auto_deliver_outputs:
-        from app.services.output_delivery import deliver_output_video
+        from app.services.output_delivery import deliver_output_video, record_output_delivery_failure
 
-        output = deliver_output_video(db, output_video_id=output.id, target=delivery_target)
+        try:
+            output = deliver_output_video(db, output_video_id=output.id, target=delivery_target)
+        except ValueError as exc:
+            output = record_output_delivery_failure(
+                db,
+                output_video_id=output.id,
+                target=delivery_target,
+                error_message=str(exc),
+                phase="auto_delivery",
+            ) or output
 
     job.status = RenderStatus.succeeded
     job.error_message = None

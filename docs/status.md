@@ -42,14 +42,15 @@ Last updated: 2026-07-08
 - Added production output delivery deployment notes for Drive write scopes, S3 IAM, and shared staging storage.
 - Added opt-in automatic output delivery on successful render completion.
 - Added dashboard delivery controls for completed private outputs.
+- Added delivery failure recording, retry support, and dashboard error details.
 
 ## Verification
 
-- API tests: passed locally (`15 passed`).
+- API tests: passed locally (`16 passed`).
 - Worker tests: passed locally (`4 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Add delivery failure retry UX and operator-facing delivery error details.
+- Add end-to-end local smoke workflow documentation for project creation through private delivery.

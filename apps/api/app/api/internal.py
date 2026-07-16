@@ -15,7 +15,7 @@ from app.schemas.api import (
 from app.services.audit import audit
 from app.services.analysis_providers import get_analysis_provider, get_analysis_provider_metrics
 from app.services.malware import record_malware_scan_result, scan_media_asset
-from app.services.output_delivery import deliver_output_video, record_output_delivery
+from app.services.output_delivery import deliver_output_video, record_output_delivery, record_output_delivery_failure
 from app.services.rendering import complete_render_job, fail_render_job, mark_render_job_running
 
 router = APIRouter(prefix="/internal", tags=["internal"])
@@ -230,6 +230,23 @@ def output_video_deliver(
     try:
         output = deliver_output_video(db, output_video_id=output_video_id, target=payload.target)
     except ValueError as exc:
+        output = record_output_delivery_failure(
+            db,
+            output_video_id=output_video_id,
+            target=payload.target,
+            error_message=str(exc),
+            phase="manual_delivery",
+        )
+        if output is not None:
+            audit(
+                db,
+                user_id=user.id,
+                project_id=output.project_id,
+                action="output.delivery.failed",
+                correlation_id=request.state.correlation_id,
+                metadata={"output_video_id": output.id, "target": output.delivery_target},
+            )
+            db.commit()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     audit(
         db,

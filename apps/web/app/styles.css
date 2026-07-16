@@ -357,6 +357,11 @@ p {
   font-size: 13px;
 }
 
+.outputError {
+  color: var(--danger) !important;
+  overflow-wrap: anywhere;
+}
+
 .logRow {
   color: var(--muted);
 }

@@ -72,6 +72,11 @@ type OutputVideo = {
   delivery?: {
     target?: string;
     status?: string;
+    details?: {
+      details?: {
+        error?: string;
+      };
+    };
   };
 };
 
@@ -507,6 +512,9 @@ export default function Page() {
                   <span className={`pill ${output.delivery?.status ?? "private_staging"}`}>
                     {output.delivery?.target ?? "delivery"} · {output.delivery?.status ?? "private staging"}
                   </span>
+                  {output.delivery?.status === "failed" && output.delivery.details?.details?.error ? (
+                    <span className="outputError">{output.delivery.details.details.error}</span>
+                  ) : null}
                   <button
                     className="ghost"
                     onClick={() => void deliverOutput(output)}
