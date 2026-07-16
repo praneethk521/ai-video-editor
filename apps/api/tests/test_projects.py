@@ -247,6 +247,24 @@ def test_drive_output_delivery_uploads_with_connected_oauth(client, auth_headers
     assert delivered_output["delivery"]["delivered_locator"] == "drive://private-output-folder/uploaded-drive-file"
 
 
+def test_render_completion_can_auto_deliver_to_local_private(client, auth_headers, monkeypatch, tmp_path: Path):
+    staging_root = tmp_path / "staging"
+    delivered_root = tmp_path / "delivered"
+    monkeypatch.setattr(settings, "auto_deliver_outputs", True)
+    monkeypatch.setattr(settings, "output_delivery_local_root", str(staging_root))
+    monkeypatch.setattr(settings, "local_private_delivery_root", str(delivered_root))
+    project = client.post("/projects", json={"name": "Auto Delivery"}, headers=auth_headers).json()
+
+    output = create_completed_output(client, auth_headers, project["id"], staging_root, delivery_target="local_private")
+
+    outputs = client.get(f"/projects/{project['id']}/outputs", headers=auth_headers)
+    delivered_output = next(row for row in outputs.json()["outputs"] if row["id"] == output["id"])
+    assert delivered_output["delivery"]["status"] == "delivered"
+    assert delivered_output["delivery"]["target"] == "local_private"
+    assert delivered_output["delivery"]["delivered_locator"].startswith("file://private/delivered/")
+    assert any(delivered_root.rglob("*.mp4"))
+
+
 def test_rejects_public_media_urls_and_path_traversal(client, auth_headers):
     project = client.post("/projects", json={"name": "Secure ingest"}, headers=auth_headers).json()
     response = client.post(
@@ -266,7 +284,7 @@ def test_rejects_public_media_urls_and_path_traversal(client, auth_headers):
     assert response.status_code == 422
 
 
-def create_completed_output(client, auth_headers, project_id: str, local_root: Path) -> dict:
+def create_completed_output(client, auth_headers, project_id: str, local_root: Path, delivery_target: str = "drive") -> dict:
     ingested = client.post(
         f"/projects/{project_id}/ingest",
         json={
@@ -310,7 +328,11 @@ def create_completed_output(client, auth_headers, project_id: str, local_root: P
             "height": 1080,
             "duration_seconds": 5,
             "file_size_bytes": staged_path.stat().st_size,
-            "upload_package": {"manual_upload_only": True, "delivery_target": "drive", "delivery_status": "private_staging"},
+            "upload_package": {
+                "manual_upload_only": True,
+                "delivery_target": delivery_target,
+                "delivery_status": "private_staging",
+            },
             "validation": {"status": "passed", "checks": {"ffprobe": True}},
         },
         headers=auth_headers,

@@ -143,6 +143,12 @@ def complete_render_job(db: Session, *, render_job_id: str, result) -> OutputVid
             "manual_upload_only": bool(upload_package.get("manual_upload_only", True)),
         }
 
+    db.flush()
+    if settings.auto_deliver_outputs:
+        from app.services.output_delivery import deliver_output_video
+
+        output = deliver_output_video(db, output_video_id=output.id, target=delivery_target)
+
     job.status = RenderStatus.succeeded
     job.error_message = None
     refresh_project_render_status(db, project_id=job.project_id)

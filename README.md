@@ -49,6 +49,7 @@ The current executable slice supports:
 - Register private output metadata.
 - Record private output delivery state for Drive, S3, or local private targets.
 - Deliver staged private outputs to Google Drive, private S3, or local private storage adapters.
+- Optionally auto-deliver outputs when render completion callbacks arrive.
 - Audit user actions without logging secrets, tokens, public URLs, or file contents.
 
 ## Security Defaults

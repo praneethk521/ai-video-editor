@@ -49,6 +49,7 @@ Use a bucket with public access blocked and default encryption enabled.
 
 ```text
 OUTPUT_STORAGE_PROVIDER=s3
+AUTO_DELIVER_OUTPUTS=false
 S3_BUCKET=<private-render-output-bucket>
 S3_REGION=us-east-1
 S3_PREFIX=ai-video-editor/outputs
@@ -108,3 +109,5 @@ For S3 delivery, prefer workload identity/OIDC over static AWS keys. If static k
 3. Call `POST /internal/output-videos/{output_video_id}/deliver` with the target, or let orchestration call it after render completion.
 4. Verify `/projects/{project_id}/outputs` shows `delivery.status = delivered`.
 5. Cleanup staged files only after delivered locators point to Drive, `s3://private/`, or local private storage.
+
+Set `AUTO_DELIVER_OUTPUTS=true` only when the API can read the shared staging volume and the selected delivery target has working credentials. Leave it `false` when n8n or another orchestrator should decide when to deliver.

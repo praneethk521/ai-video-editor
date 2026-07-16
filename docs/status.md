@@ -40,14 +40,15 @@ Last updated: 2026-07-08
 - Wired Docker Compose and Kubernetes for shared render staging between worker and API delivery.
 - Added CI validation for Docker Compose and Kubernetes manifests.
 - Added production output delivery deployment notes for Drive write scopes, S3 IAM, and shared staging storage.
+- Added opt-in automatic output delivery on successful render completion.
 
 ## Verification
 
-- API tests: passed locally (`14 passed`).
+- API tests: passed locally (`15 passed`).
 - Worker tests: passed locally (`4 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Add orchestration hook to trigger private output delivery automatically after successful renders.
+- Add surfaced delivery controls and auto-delivery state to the dashboard workflow.

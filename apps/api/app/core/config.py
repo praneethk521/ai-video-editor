@@ -49,6 +49,7 @@ class Settings(BaseSettings):
         "audio/wav",
     }
     output_storage_provider: str = "drive"
+    auto_deliver_outputs: bool = False
     output_delivery_local_root: str = "/tmp/ai-video-editor/outputs"
     local_private_delivery_root: str = "/tmp/ai-video-editor/delivered"
     s3_bucket: str = ""
