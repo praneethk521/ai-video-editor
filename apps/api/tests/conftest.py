@@ -10,7 +10,7 @@ os.environ["RENDER_QUEUE_BACKEND"] = "database"
 import pytest
 from fastapi.testclient import TestClient
 
-from app.db.session import Base, engine
+from app.db.session import Base, SessionLocal, engine
 from app.main import create_app
 
 
@@ -30,3 +30,9 @@ def client():
 @pytest.fixture
 def auth_headers():
     return {"Authorization": "Bearer test-token"}
+
+
+@pytest.fixture
+def db_session():
+    with SessionLocal() as session:
+        yield session

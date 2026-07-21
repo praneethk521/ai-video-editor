@@ -58,7 +58,7 @@ Projects should remain owned by a user or team. A user receives access through d
 6. Add tests for each endpoint group and for cross-project denial.
 7. Update dashboard behavior to hide actions the current role cannot execute.
 
-The draft schema lives in `apps/api/migrations/002_rbac.sql` and matching SQLAlchemy models.
+The draft schema lives in `apps/api/migrations/002_rbac.sql` and matching SQLAlchemy models. The helper skeleton lives in `apps/api/app/services/authorization.py`.
 
 ## Audit Requirements
 

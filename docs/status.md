@@ -64,6 +64,7 @@ Last updated: 2026-07-16
 - Added production gap tracker for M4 hardening work.
 - Added RBAC design notes for the next production hardening slice.
 - Added RBAC schema migration draft.
+- Added RBAC authorization helper skeleton.
 
 ## Verification
 
@@ -74,4 +75,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add RBAC authorization helper skeleton.
+- Wire project read endpoints to RBAC viewer checks.
