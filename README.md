@@ -96,3 +96,4 @@ pytest
 - Local smoke workflow: `docs/LOCAL_SMOKE_WORKFLOW.md`
 - Retention policy: `docs/RETENTION_POLICY.md`
 - Branch protection: `docs/BRANCH_PROTECTION.md`
+- Release readiness: `docs/RELEASE_READINESS.md`

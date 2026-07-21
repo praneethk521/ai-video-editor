@@ -57,6 +57,7 @@ Last updated: 2026-07-16
 - Added scripted smoke coverage for retention cleanup endpoints.
 - Added CI shell linting for smoke scripts.
 - Added branch protection and required check documentation for the public repo.
+- Added release readiness checklist for the current MVP slice.
 
 ## Verification
 
@@ -67,4 +68,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add release readiness checklist for the current MVP slice.
+- Add release notes template for MVP deployments.
