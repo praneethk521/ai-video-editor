@@ -32,7 +32,7 @@ from app.schemas.api import (
 )
 from app.services.audit import audit
 from app.services.analysis_providers import AnalysisProviderError
-from app.services.authorization import require_project_role
+from app.services.authorization import project_role_for_user, role_allows
 from app.services.media import complete_drive_oauth, create_drive_connection, create_media_asset, sync_drive_folder
 from app.services.output_delivery import cleanup_due_delivered_output
 from app.services.planning import (
@@ -48,12 +48,74 @@ from app.services.rendering import create_render_jobs, dispatch_render_jobs, fai
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-def get_project_for_role_or_404(db: Session, project_id: str, user: CurrentUser, minimum_role: str) -> Project:
+def get_project_for_role_or_404(
+    db: Session,
+    project_id: str,
+    user: CurrentUser,
+    minimum_role: str,
+    request: Request,
+    requested_action: str,
+) -> Project:
     project = db.get(Project, project_id)
-    if project is None:
+    if project is None or project.status == ProjectStatus.deleted:
+        audit_project_authorization(
+            db,
+            user=user,
+            project_id=project_id,
+            minimum_role=minimum_role,
+            actual_role=None,
+            requested_action=requested_action,
+            outcome="denied",
+            reason="project_not_found",
+            correlation_id=request.state.correlation_id,
+        )
+        db.commit()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
-    require_project_role(db, project=project, user=user, minimum_role=minimum_role)
+    actual_role = project_role_for_user(db, project=project, user=user)
+    allowed = role_allows(actual_role, minimum_role)
+    audit_project_authorization(
+        db,
+        user=user,
+        project_id=project.id,
+        minimum_role=minimum_role,
+        actual_role=actual_role,
+        requested_action=requested_action,
+        outcome="allowed" if allowed else "denied",
+        reason=None if allowed else "insufficient_project_role",
+        correlation_id=request.state.correlation_id,
+    )
+    db.commit()
+    if not allowed:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="insufficient project role")
     return project
+
+
+def audit_project_authorization(
+    db: Session,
+    *,
+    user: CurrentUser,
+    project_id: str,
+    minimum_role: str,
+    actual_role: str | None,
+    requested_action: str,
+    outcome: str,
+    reason: str | None,
+    correlation_id: str,
+) -> None:
+    audit(
+        db,
+        user_id=user.id,
+        project_id=project_id,
+        action="authorization.project",
+        correlation_id=correlation_id,
+        metadata={
+            "requested_action": requested_action,
+            "minimum_role": minimum_role,
+            "actual_role": actual_role,
+            "outcome": outcome,
+            "reason": reason,
+        },
+    )
 
 
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
@@ -80,7 +142,9 @@ def connect_drive(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    get_project_for_role_or_404(db, project_id, user, minimum_role="operator")
+    get_project_for_role_or_404(
+        db, project_id, user, minimum_role="operator", request=request, requested_action="drive.connection.create"
+    )
     connection, authorization_url = create_drive_connection(db, project_id=project_id, folder_url=str(payload.folder_url))
     audit(
         db,
@@ -135,7 +199,9 @@ def ingest(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project = get_project_for_role_or_404(db, project_id, user, minimum_role="operator")
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="operator", request=request, requested_action="media.ingest"
+    )
     accepted = []
     try:
         for asset in payload.assets:
@@ -164,7 +230,9 @@ def sync_drive(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project = get_project_for_role_or_404(db, project_id, user, minimum_role="operator")
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="operator", request=request, requested_action="drive.folder.sync"
+    )
     try:
         result = sync_drive_folder(db, project_id=project.id)
     except ValueError as exc:
@@ -194,7 +262,9 @@ def analyze(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project = get_project_for_role_or_404(db, project_id, user, minimum_role="operator")
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="operator", request=request, requested_action="project.analyze"
+    )
     try:
         analysis, plans = analyze_and_plan(db, project_id=project.id)
     except AnalysisProviderError as exc:
@@ -213,10 +283,13 @@ def analyze(
 @router.get("/{project_id}/analysis", response_model=AnalysisResultsResponse)
 def analysis_results(
     project_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project = get_project_for_role_or_404(db, project_id, user, minimum_role="viewer")
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="viewer", request=request, requested_action="analysis.results.read"
+    )
     return AnalysisResultsResponse(
         results=[
             {
@@ -233,10 +306,13 @@ def analysis_results(
 @router.get("/{project_id}/plans", response_model=TimelinePlansResponse)
 def timeline_plans(
     project_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project = get_project_for_role_or_404(db, project_id, user, minimum_role="viewer")
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="viewer", request=request, requested_action="timeline.plans.read"
+    )
     return TimelinePlansResponse(plans=[plan_to_response(plan) for plan in list_timeline_plans(db, project_id=project.id)])
 
 
@@ -248,7 +324,9 @@ def regenerate_plans(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project = get_project_for_role_or_404(db, project_id, user, minimum_role="operator")
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="operator", request=request, requested_action="timeline.plans.regenerate"
+    )
     try:
         plans = regenerate_timeline_plans(db, project_id=project.id, variants=payload.variants, notes=payload.notes)
     except ValueError as exc:
@@ -274,7 +352,9 @@ def approve_plan(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    get_project_for_role_or_404(db, project_id, user, minimum_role="reviewer")
+    get_project_for_role_or_404(
+        db, project_id, user, minimum_role="reviewer", request=request, requested_action="timeline.plan.approve"
+    )
     try:
         plan = approve_timeline_plan(db, project_id=project_id, plan_id=plan_id, notes=payload.notes)
     except ValueError as exc:
@@ -300,7 +380,9 @@ def reject_plan(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    get_project_for_role_or_404(db, project_id, user, minimum_role="reviewer")
+    get_project_for_role_or_404(
+        db, project_id, user, minimum_role="reviewer", request=request, requested_action="timeline.plan.reject"
+    )
     try:
         plan = reject_timeline_plan(db, project_id=project_id, plan_id=plan_id, notes=payload.notes)
     except ValueError as exc:
@@ -325,7 +407,9 @@ def render(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project = get_project_for_role_or_404(db, project_id, user, minimum_role="operator")
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="operator", request=request, requested_action="render.jobs.queue"
+    )
     try:
         jobs, queue_items = create_render_jobs(db, project_id=project.id, variants=payload.variants)
     except ValueError as exc:
@@ -363,10 +447,13 @@ def render(
 @router.get("/{project_id}/status", response_model=ProjectStatusResponse)
 def project_status(
     project_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project = get_project_for_role_or_404(db, project_id, user, minimum_role="viewer")
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="viewer", request=request, requested_action="project.status.read"
+    )
     jobs = db.query(RenderJob).filter(RenderJob.project_id == project.id).all()
     media_count = db.query(MediaAsset).filter(MediaAsset.project_id == project.id).count()
     return ProjectStatusResponse(
@@ -380,10 +467,13 @@ def project_status(
 @router.get("/{project_id}/outputs", response_model=OutputResponse)
 def outputs(
     project_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project = get_project_for_role_or_404(db, project_id, user, minimum_role="viewer")
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="viewer", request=request, requested_action="outputs.read"
+    )
     rows = db.query(OutputVideo).filter(OutputVideo.project_id == project.id).all()
     return OutputResponse(
         outputs=[
@@ -411,10 +501,13 @@ def outputs(
 @router.get("/{project_id}/outputs/retention", response_model=OutputRetentionReportResponse)
 def output_retention_report(
     project_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project = get_project_for_role_or_404(db, project_id, user, minimum_role="viewer")
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="viewer", request=request, requested_action="outputs.retention.read"
+    )
     rows = db.query(OutputVideo).filter(OutputVideo.project_id == project.id).all()
     return OutputRetentionReportResponse(
         project_id=project.id,
@@ -431,7 +524,14 @@ def cleanup_due_output_retention(
     user: CurrentUser = Depends(get_current_user),
 ):
     minimum_role = "operator" if payload.dry_run else "owner"
-    project = get_project_for_role_or_404(db, project_id, user, minimum_role=minimum_role)
+    project = get_project_for_role_or_404(
+        db,
+        project_id,
+        user,
+        minimum_role=minimum_role,
+        request=request,
+        requested_action="outputs.retention.cleanup_preview" if payload.dry_run else "outputs.retention.cleanup_execute",
+    )
     rows = db.query(OutputVideo).filter(OutputVideo.project_id == project.id).all()
     results = [cleanup_due_delivered_output(row, dry_run=payload.dry_run) for row in rows]
     audit(
@@ -458,7 +558,9 @@ def delete_project(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project = get_project_for_role_or_404(db, project_id, user, minimum_role="owner")
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="owner", request=request, requested_action="project.delete"
+    )
     project.status = ProjectStatus.deleted
     audit(db, user_id=user.id, project_id=project_id, action="project.deleted", correlation_id=request.state.correlation_id)
     db.commit()

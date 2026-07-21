@@ -130,7 +130,17 @@ type LogEntry = {
   message: string;
 };
 
+type ProjectRole = "viewer" | "reviewer" | "operator" | "owner" | "admin";
+
 const defaultApiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const roleRanks: Record<ProjectRole, number> = {
+  viewer: 10,
+  reviewer: 20,
+  operator: 30,
+  owner: 40,
+  admin: 50
+};
+const roleOptions: ProjectRole[] = ["owner", "operator", "reviewer", "viewer", "admin"];
 
 function variantLabel(variant: string) {
   return variant === "youtube_16x9" ? "YouTube 16:9" : "Shorts 9:16";
@@ -157,6 +167,7 @@ function cleanupSummary(output: OutputVideo) {
 export default function Page() {
   const [apiBase, setApiBase] = useState(defaultApiBase);
   const [apiToken, setApiToken] = useState("");
+  const [projectRole, setProjectRole] = useState<ProjectRole>("owner");
   const [projectName, setProjectName] = useState("Launch video");
   const [folderUrl, setFolderUrl] = useState("https://drive.google.com/drive/folders/private-folder-id");
   const [projectId, setProjectId] = useState("");
@@ -173,6 +184,10 @@ export default function Page() {
   const approvedCount = useMemo(() => plans.filter((plan) => plan.status === "approved").length, [plans]);
   const draftCount = useMemo(() => plans.filter((plan) => plan.status === "draft").length, [plans]);
   const latestAnalysis = analysisResults[0];
+  const canView = allowsRole(projectRole, "viewer");
+  const canReview = allowsRole(projectRole, "reviewer");
+  const canOperate = allowsRole(projectRole, "operator");
+  const canOwn = allowsRole(projectRole, "owner");
 
   function pushLog(entry: LogEntry) {
     setLog((current) => [entry, ...current].slice(0, 6));
@@ -381,11 +396,14 @@ export default function Page() {
             <p>Private Drive media, approved timelines, manual upload outputs.</p>
           </div>
           <div className="topActions">
-            <button className="ghost" onClick={() => void refreshStatus()} disabled={!projectId || busy !== null}>
+            <button className="ghost" onClick={() => void refreshStatus()} disabled={!projectId || busy !== null || !canView}>
               <RefreshCw size={16} />
               Refresh
             </button>
-            <button onClick={() => void renderApproved()} disabled={!projectId || approvedCount < 2 || busy !== null}>
+            <button
+              onClick={() => void renderApproved()}
+              disabled={!projectId || approvedCount < 2 || busy !== null || !canOperate}
+            >
               <Play size={16} />
               Render
             </button>
@@ -429,6 +447,16 @@ export default function Page() {
               Bearer token
               <input value={apiToken} onChange={(event) => setApiToken(event.target.value)} type="password" />
             </label>
+            <label>
+              Console role
+              <select value={projectRole} onChange={(event) => setProjectRole(event.target.value as ProjectRole)}>
+                {roleOptions.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            </label>
             <div className="splitFields">
               <label>
                 Project name
@@ -447,16 +475,16 @@ export default function Page() {
               <input value={folderUrl} onChange={(event) => setFolderUrl(event.target.value)} />
             </label>
             <div className="buttonRow">
-              <button className="ghost" onClick={() => void connectDrive()} disabled={!projectId || busy !== null}>
+              <button className="ghost" onClick={() => void connectDrive()} disabled={!projectId || busy !== null || !canOperate}>
                 Connect
               </button>
-              <button className="ghost" onClick={() => void syncDrive()} disabled={!projectId || busy !== null}>
+              <button className="ghost" onClick={() => void syncDrive()} disabled={!projectId || busy !== null || !canOperate}>
                 Sync
               </button>
-              <button className="ghost" onClick={() => void analyze()} disabled={!projectId || busy !== null}>
+              <button className="ghost" onClick={() => void analyze()} disabled={!projectId || busy !== null || !canOperate}>
                 Analyze
               </button>
-              <button className="ghost" onClick={() => void refreshAnalysis()} disabled={!projectId || busy !== null}>
+              <button className="ghost" onClick={() => void refreshAnalysis()} disabled={!projectId || busy !== null || !canView}>
                 Analysis
               </button>
             </div>
@@ -466,10 +494,10 @@ export default function Page() {
             <div className="panelHeader">
               <h2>Plan Review</h2>
               <div className="buttonRow compact">
-                <button className="ghost" onClick={() => void refreshPlans()} disabled={!projectId || busy !== null}>
+                <button className="ghost" onClick={() => void refreshPlans()} disabled={!projectId || busy !== null || !canView}>
                   Load
                 </button>
-                <button className="ghost" onClick={() => void regenerate()} disabled={!projectId || busy !== null}>
+                <button className="ghost" onClick={() => void regenerate()} disabled={!projectId || busy !== null || !canOperate}>
                   Regenerate
                 </button>
               </div>
@@ -498,11 +526,11 @@ export default function Page() {
                     placeholder="Review notes"
                   />
                   <div className="buttonRow">
-                    <button className="approve" onClick={() => void approve(plan.id)} disabled={busy !== null}>
+                    <button className="approve" onClick={() => void approve(plan.id)} disabled={busy !== null || !canReview}>
                       <CheckCircle2 size={16} />
                       Approve
                     </button>
-                    <button className="reject" onClick={() => void reject(plan.id)} disabled={busy !== null}>
+                    <button className="reject" onClick={() => void reject(plan.id)} disabled={busy !== null || !canReview}>
                       <XCircle size={16} />
                       Reject
                     </button>
@@ -566,27 +594,27 @@ export default function Page() {
             <div className="panelHeader">
               <h2>Outputs</h2>
               <div className="buttonRow compact">
-                <button className="ghost" onClick={() => void loadOutputs()} disabled={!projectId || busy !== null}>
+                <button className="ghost" onClick={() => void loadOutputs()} disabled={!projectId || busy !== null || !canView}>
                   Load
                 </button>
                 <button
                   className="ghost"
                   onClick={() => void loadRetentionReport()}
-                  disabled={!projectId || busy !== null}
+                  disabled={!projectId || busy !== null || !canView}
                 >
                   Retention
                 </button>
                 <button
                   className="ghost"
                   onClick={() => void runRetentionCleanup(true)}
-                  disabled={!projectId || busy !== null}
+                  disabled={!projectId || busy !== null || !canOperate}
                 >
                   Preview cleanup
                 </button>
                 <button
                   className="reject"
                   onClick={() => void runRetentionCleanup(false)}
-                  disabled={!projectId || busy !== null}
+                  disabled={!projectId || busy !== null || !canOwn}
                 >
                   Run cleanup
                 </button>
@@ -616,7 +644,7 @@ export default function Page() {
                     <button
                       className="ghost"
                       onClick={() => void deliverOutput(output)}
-                      disabled={busy !== null || output.delivery?.status === "delivered"}
+                      disabled={busy !== null || output.delivery?.status === "delivered" || !canOperate}
                     >
                       <UploadCloud size={16} />
                       Deliver
@@ -672,4 +700,8 @@ export default function Page() {
       </section>
     </main>
   );
+}
+
+function allowsRole(actual: ProjectRole, required: ProjectRole) {
+  return roleRanks[actual] >= roleRanks[required];
 }

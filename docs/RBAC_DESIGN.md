@@ -58,7 +58,7 @@ Projects should remain owned by a user or team. A user receives access through d
 6. Add tests for each endpoint group and for cross-project denial.
 7. Update dashboard behavior to hide actions the current role cannot execute.
 
-The draft schema lives in `apps/api/migrations/002_rbac.sql` and matching SQLAlchemy models. User-facing project authorization is enforced through `apps/api/app/services/authorization.py`. Internal callbacks now use scoped service-token checks in `apps/api/app/core/security.py` and `apps/api/app/api/internal.py`; the legacy API token bridge remains for local smoke workflows while deployments move to stored service tokens.
+The draft schema lives in `apps/api/migrations/002_rbac.sql` and matching SQLAlchemy models. User-facing project authorization is enforced through `apps/api/app/services/authorization.py`. Internal callbacks now use scoped service-token checks in `apps/api/app/core/security.py` and `apps/api/app/api/internal.py`; the legacy API token bridge remains for local smoke workflows while deployments move to stored service tokens. Project authorization decisions emit `authorization.project` audit rows, and the dashboard includes role-aware control gating for viewer, reviewer, operator, owner, and admin checks.
 
 ## Audit Requirements
 

@@ -4,7 +4,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.core.security import CurrentUser, get_current_user, hash_service_token
-from app.models.entities import Project, ProjectMember, RenderJob, ServiceToken, Team, TeamMember, TimelinePlan
+from app.models.entities import AuditLog, Project, ProjectMember, RenderJob, ServiceToken, Team, TeamMember, TimelinePlan
 from app.services.authorization import project_role_for_user, require_project_role, role_allows
 
 
@@ -71,6 +71,10 @@ def test_project_viewer_can_read_project_status(client, auth_headers, db_session
 
     assert response.status_code == 200
     assert response.json()["project_id"] == project.id
+    audit_row = db_session.query(AuditLog).filter(AuditLog.action == "authorization.project").one()
+    assert audit_row.metadata_json["outcome"] == "allowed"
+    assert audit_row.metadata_json["actual_role"] == "viewer"
+    assert audit_row.metadata_json["requested_action"] == "project.status.read"
 
 
 def test_project_viewer_cannot_render_project(client, auth_headers, db_session):
@@ -90,6 +94,10 @@ def test_project_viewer_cannot_render_project(client, auth_headers, db_session):
         client.app.dependency_overrides.clear()
 
     assert response.status_code == 403
+    audit_row = db_session.query(AuditLog).filter(AuditLog.action == "authorization.project").one()
+    assert audit_row.metadata_json["outcome"] == "denied"
+    assert audit_row.metadata_json["minimum_role"] == "operator"
+    assert audit_row.metadata_json["reason"] == "insufficient_project_role"
 
 
 def test_project_operator_can_connect_drive(client, auth_headers, db_session):
@@ -219,6 +227,10 @@ def test_project_read_denies_non_member(client, auth_headers, db_session):
         client.app.dependency_overrides.clear()
 
     assert response.status_code == 403
+    audit_row = db_session.query(AuditLog).filter(AuditLog.action == "authorization.project").one()
+    assert audit_row.metadata_json["outcome"] == "denied"
+    assert audit_row.metadata_json["actual_role"] is None
+    assert audit_row.metadata_json["requested_action"] == "project.status.read"
 
 
 def test_project_scoped_service_token_can_update_own_render_job(client, db_session):

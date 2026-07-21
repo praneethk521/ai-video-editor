@@ -68,6 +68,7 @@ Last updated: 2026-07-20
 - Wired project read endpoints to RBAC viewer checks while keeping mutating project actions owner-only.
 - Wired user-facing project mutation endpoints to explicit RBAC policies for operator, reviewer, owner, and admin roles.
 - Added scoped service-token authorization for internal worker and orchestration callbacks.
+- Added project authorization outcome audit events and dashboard role-aware controls.
 
 ## Verification
 
@@ -78,4 +79,4 @@ Last updated: 2026-07-20
 
 ## Next
 
-- Add authorization outcome audit events and dashboard role-aware controls.
+- Add rate limits and quota controls for expensive project workflows.
