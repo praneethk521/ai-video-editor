@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from app.core.security import CurrentUser
+from app.core.security import CurrentUser, get_current_user
 from app.models.entities import Project, ProjectMember, Team, TeamMember
 from app.services.authorization import project_role_for_user, require_project_role, role_allows
 
@@ -51,3 +51,59 @@ def test_project_membership_authorization(db_session):
             minimum_role="operator",
         )
     assert exc.value.status_code == 403
+
+
+def test_project_viewer_can_read_project_status(client, auth_headers, db_session):
+    project = Project(name="Viewer-visible project", owner_user_id="owner-user")
+    db_session.add(project)
+    db_session.flush()
+    db_session.add(ProjectMember(project_id=project.id, user_id="viewer-user", role="viewer"))
+    db_session.commit()
+
+    def viewer_user():
+        return CurrentUser("viewer-user", "viewer@example.test")
+
+    client.app.dependency_overrides[get_current_user] = viewer_user
+    try:
+        response = client.get(f"/projects/{project.id}/status", headers=auth_headers)
+    finally:
+        client.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["project_id"] == project.id
+
+
+def test_project_viewer_cannot_render_project(client, auth_headers, db_session):
+    project = Project(name="Viewer-read-only project", owner_user_id="owner-user")
+    db_session.add(project)
+    db_session.flush()
+    db_session.add(ProjectMember(project_id=project.id, user_id="viewer-user", role="viewer"))
+    db_session.commit()
+
+    def viewer_user():
+        return CurrentUser("viewer-user", "viewer@example.test")
+
+    client.app.dependency_overrides[get_current_user] = viewer_user
+    try:
+        response = client.post(f"/projects/{project.id}/render", json={"variants": ["youtube_16x9"]}, headers=auth_headers)
+    finally:
+        client.app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+
+
+def test_project_read_denies_non_member(client, auth_headers, db_session):
+    project = Project(name="Private project", owner_user_id="owner-user")
+    db_session.add(project)
+    db_session.commit()
+
+    def stranger_user():
+        return CurrentUser("stranger-user", "stranger@example.test")
+
+    client.app.dependency_overrides[get_current_user] = stranger_user
+    try:
+        response = client.get(f"/projects/{project.id}/status", headers=auth_headers)
+    finally:
+        client.app.dependency_overrides.clear()
+
+    assert response.status_code == 403

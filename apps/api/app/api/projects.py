@@ -32,7 +32,9 @@ from app.schemas.api import (
 )
 from app.services.audit import audit
 from app.services.analysis_providers import AnalysisProviderError
+from app.services.authorization import require_project_role
 from app.services.media import complete_drive_oauth, create_drive_connection, create_media_asset, sync_drive_folder
+from app.services.output_delivery import cleanup_due_delivered_output
 from app.services.planning import (
     analyze_and_plan,
     approve_timeline_plan,
@@ -42,7 +44,6 @@ from app.services.planning import (
     reject_timeline_plan,
 )
 from app.services.rendering import create_render_jobs, dispatch_render_jobs, fail_render_job
-from app.services.output_delivery import cleanup_due_delivered_output
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -51,6 +52,14 @@ def get_project_or_404(db: Session, project_id: str, user: CurrentUser) -> Proje
     project = db.get(Project, project_id)
     if project is None or project.owner_user_id != user.id or project.status == ProjectStatus.deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
+    return project
+
+
+def get_project_for_role_or_404(db: Session, project_id: str, user: CurrentUser, minimum_role: str) -> Project:
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
+    require_project_role(db, project=project, user=user, minimum_role=minimum_role)
     return project
 
 
@@ -214,7 +223,7 @@ def analysis_results(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project = get_project_or_404(db, project_id, user)
+    project = get_project_for_role_or_404(db, project_id, user, minimum_role="viewer")
     return AnalysisResultsResponse(
         results=[
             {
@@ -234,7 +243,7 @@ def timeline_plans(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project = get_project_or_404(db, project_id, user)
+    project = get_project_for_role_or_404(db, project_id, user, minimum_role="viewer")
     return TimelinePlansResponse(plans=[plan_to_response(plan) for plan in list_timeline_plans(db, project_id=project.id)])
 
 
@@ -364,7 +373,7 @@ def project_status(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project = get_project_or_404(db, project_id, user)
+    project = get_project_for_role_or_404(db, project_id, user, minimum_role="viewer")
     jobs = db.query(RenderJob).filter(RenderJob.project_id == project.id).all()
     media_count = db.query(MediaAsset).filter(MediaAsset.project_id == project.id).count()
     return ProjectStatusResponse(
@@ -381,7 +390,7 @@ def outputs(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project = get_project_or_404(db, project_id, user)
+    project = get_project_for_role_or_404(db, project_id, user, minimum_role="viewer")
     rows = db.query(OutputVideo).filter(OutputVideo.project_id == project.id).all()
     return OutputResponse(
         outputs=[
@@ -412,7 +421,7 @@ def output_retention_report(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    project = get_project_or_404(db, project_id, user)
+    project = get_project_for_role_or_404(db, project_id, user, minimum_role="viewer")
     rows = db.query(OutputVideo).filter(OutputVideo.project_id == project.id).all()
     return OutputRetentionReportResponse(
         project_id=project.id,
