@@ -99,3 +99,4 @@ pytest
 - Release readiness: `docs/RELEASE_READINESS.md`
 - Release notes template: `docs/RELEASE_NOTES_TEMPLATE.md`
 - Versioning: `docs/VERSIONING.md`
+- Deploy and rollback checklist: `docs/DEPLOY_ROLLBACK_CHECKLIST.md`

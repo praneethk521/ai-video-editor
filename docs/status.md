@@ -60,6 +60,7 @@ Last updated: 2026-07-16
 - Added release readiness checklist for the current MVP slice.
 - Added release notes template for MVP deployments.
 - Added version tagging guidance for MVP releases.
+- Added deploy and rollback checklist for MVP releases.
 
 ## Verification
 
@@ -70,4 +71,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add deploy/rollback checklist for MVP releases.
+- Add production gap tracker for M4 hardening work.
