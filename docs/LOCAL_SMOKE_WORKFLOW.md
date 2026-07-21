@@ -210,6 +210,14 @@ docker compose -f infra/docker/docker-compose.yml exec -T api sh -lc "
 "
 ```
 
+You can smoke test the retention report and cleanup endpoints against the project with:
+
+```bash
+PROJECT_ID="${PROJECT_ID}" TOKEN="${TOKEN}" ./scripts/smoke-retention-cleanup.sh
+```
+
+The script previews cleanup by default. Set `RUN_RETENTION_CLEANUP=true` only when due local-private delivered artifacts should be deleted.
+
 ## Failure And Retry Check
 
 To verify failure recording, delete a staged file before step 8 and deliver that output. The API should return HTTP `422`, and `GET /projects/{project_id}/outputs` should show `delivery.status` as `failed` with an error in `delivery.details.details.error`.

@@ -54,6 +54,7 @@ Last updated: 2026-07-16
 - Added delivered-output retention cleanup workflow for due local-private artifacts.
 - Added dashboard action to preview and run due retention cleanup.
 - Added retention cleanup operations to the runbook.
+- Added scripted smoke coverage for retention cleanup endpoints.
 
 ## Verification
 
@@ -64,4 +65,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add CI or scripted smoke coverage for retention cleanup endpoints.
+- Add CI shell linting for smoke scripts.
