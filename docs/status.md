@@ -55,6 +55,7 @@ Last updated: 2026-07-16
 - Added dashboard action to preview and run due retention cleanup.
 - Added retention cleanup operations to the runbook.
 - Added scripted smoke coverage for retention cleanup endpoints.
+- Added CI shell linting for smoke scripts.
 
 ## Verification
 
@@ -65,4 +66,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add CI shell linting for smoke scripts.
+- Add branch protection and required check documentation for the public repo.
