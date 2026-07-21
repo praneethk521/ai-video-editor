@@ -98,3 +98,4 @@ pytest
 - Branch protection: `docs/BRANCH_PROTECTION.md`
 - Release readiness: `docs/RELEASE_READINESS.md`
 - Release notes template: `docs/RELEASE_NOTES_TEMPLATE.md`
+- Versioning: `docs/VERSIONING.md`

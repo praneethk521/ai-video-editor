@@ -59,6 +59,7 @@ Last updated: 2026-07-16
 - Added branch protection and required check documentation for the public repo.
 - Added release readiness checklist for the current MVP slice.
 - Added release notes template for MVP deployments.
+- Added version tagging guidance for MVP releases.
 
 ## Verification
 
@@ -69,4 +70,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add version tagging guidance for MVP releases.
+- Add deploy/rollback checklist for MVP releases.
