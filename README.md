@@ -101,3 +101,4 @@ pytest
 - Versioning: `docs/VERSIONING.md`
 - Deploy and rollback checklist: `docs/DEPLOY_ROLLBACK_CHECKLIST.md`
 - Production gap tracker: `docs/PRODUCTION_GAP_TRACKER.md`
+- RBAC design: `docs/RBAC_DESIGN.md`
