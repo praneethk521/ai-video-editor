@@ -58,6 +58,7 @@ Last updated: 2026-07-16
 - Added CI shell linting for smoke scripts.
 - Added branch protection and required check documentation for the public repo.
 - Added release readiness checklist for the current MVP slice.
+- Added release notes template for MVP deployments.
 
 ## Verification
 
@@ -68,4 +69,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add release notes template for MVP deployments.
+- Add version tagging guidance for MVP releases.

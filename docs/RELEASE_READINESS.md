@@ -64,3 +64,5 @@ Release only when:
 3. Operator gates are verified against a local or staging project.
 4. Known production gaps are accepted for the intended environment.
 5. The release notes explicitly say media and outputs remain private and manual-upload only.
+
+Use `docs/RELEASE_NOTES_TEMPLATE.md` for release notes.
