@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     expensive_workflow_rate_limit_per_minute: int = 20
     render_rate_limit_per_minute: int = 10
     retention_cleanup_rate_limit_per_minute: int = 6
+    quota_enforcement_enabled: bool = True
+    analysis_requests_per_project_per_day: int = 50
+    render_jobs_per_project_per_day: int = 40
     google_client_id: str = ""
     google_client_secret: str = Field(default="", repr=False)
     google_oauth_redirect_uri: str = "http://localhost:8000/projects/{project_id}/connect-drive/callback"

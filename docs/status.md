@@ -70,14 +70,15 @@ Last updated: 2026-07-20
 - Added scoped service-token authorization for internal worker and orchestration callbacks.
 - Added project authorization outcome audit events and dashboard role-aware controls.
 - Added configurable project workflow rate limits for sync, analysis, regeneration, rendering, and retention cleanup.
+- Added durable daily project quota counters for analysis requests and render jobs.
 
 ## Verification
 
-- API tests: passed locally (`29 passed`).
+- API tests: passed locally (`30 passed`).
 - Worker tests: passed locally (`4 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Add project-level usage quotas and cost controls for analysis, render, storage, and delivery workflows.
+- Add storage, delivery, and provider-cost usage accounting with operator-visible summaries.

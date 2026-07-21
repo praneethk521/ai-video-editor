@@ -43,6 +43,7 @@ from app.services.planning import (
     regenerate_timeline_plans,
     reject_timeline_plan,
 )
+from app.services.quotas import ANALYSIS_REQUESTS, RENDER_JOBS, consume_project_quota
 from app.services.rate_limits import enforce_project_rate_limit
 from app.services.rendering import create_render_jobs, dispatch_render_jobs, fail_render_job
 
@@ -268,6 +269,8 @@ def analyze(
         db, project_id, user, minimum_role="operator", request=request, requested_action="project.analyze"
     )
     enforce_project_rate_limit(request, project_id=project.id, action="project.analyze")
+    consume_project_quota(db, project_id=project.id, metric=ANALYSIS_REQUESTS)
+    db.commit()
     try:
         analysis, plans = analyze_and_plan(db, project_id=project.id)
     except AnalysisProviderError as exc:
@@ -415,6 +418,8 @@ def render(
         db, project_id, user, minimum_role="operator", request=request, requested_action="render.jobs.queue"
     )
     enforce_project_rate_limit(request, project_id=project.id, action="render.jobs.queue")
+    consume_project_quota(db, project_id=project.id, metric=RENDER_JOBS, amount=len(payload.variants))
+    db.commit()
     try:
         jobs, queue_items = create_render_jobs(db, project_id=project.id, variants=payload.variants)
     except ValueError as exc:
