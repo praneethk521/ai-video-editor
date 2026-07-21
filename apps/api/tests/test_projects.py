@@ -7,7 +7,7 @@ import httpx
 
 from app.core.config import settings
 from app.db.session import SessionLocal
-from app.models.entities import MediaAsset, OAuthConnection, Project, ProjectStatus
+from app.models.entities import MediaAsset, OAuthConnection, OutputVideo, Project, ProjectStatus
 from app.services.malware import ScanResult
 from app.services.media import decrypt_token_payload
 
@@ -449,6 +449,41 @@ def test_local_private_smoke_workflow_project_to_delivery(client, auth_headers, 
     assert all(row["cleanup_status"] == "deleted" for row in retention_rows)
     assert all(row["days_until_delete"] is not None and row["days_until_delete"] > 0 for row in retention_rows)
     assert {row["retention_due"] for row in retention_rows} == {False}
+
+    with SessionLocal() as db:
+        for output in db.query(OutputVideo).filter(OutputVideo.project_id == project_id).all():
+            delivery_json = output.delivery_json or {}
+            details = delivery_json.get("details") or {}
+            retention = {**(details.get("retention") or {}), "delete_after": "2000-01-01"}
+            output.delivery_json = {**delivery_json, "details": {**details, "retention": retention}}
+        db.commit()
+
+    due_report = client.get(f"/projects/{project_id}/outputs/retention", headers=auth_headers)
+    assert due_report.status_code == 200
+    assert {row["retention_due"] for row in due_report.json()["outputs"]} == {True}
+
+    dry_run_cleanup = client.post(
+        f"/projects/{project_id}/outputs/retention/cleanup",
+        json={"dry_run": True},
+        headers=auth_headers,
+    )
+    assert dry_run_cleanup.status_code == 200
+    assert {row["cleanup"]["status"] for row in dry_run_cleanup.json()["outputs"]} == {"would_delete"}
+    assert len(list(delivered_root.rglob("*.mp4"))) == 2
+    assert len(list(delivered_root.rglob("*.retention.json"))) == 2
+
+    cleanup = client.post(
+        f"/projects/{project_id}/outputs/retention/cleanup",
+        json={"dry_run": False},
+        headers=auth_headers,
+    )
+    assert cleanup.status_code == 200
+    assert {row["cleanup"]["status"] for row in cleanup.json()["outputs"]} == {"deleted"}
+    assert not any(delivered_root.rglob("*.mp4"))
+    assert not any(delivered_root.rglob("*.retention.json"))
+
+    cleaned_report = client.get(f"/projects/{project_id}/outputs/retention", headers=auth_headers)
+    assert {row["delivered_artifact_cleanup_status"] for row in cleaned_report.json()["outputs"]} == {"deleted"}
 
 
 def test_rejects_public_media_urls_and_path_traversal(client, auth_headers):

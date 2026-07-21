@@ -105,6 +105,16 @@ class OutputRetentionReportResponse(BaseModel):
     outputs: list[dict]
 
 
+class OutputRetentionCleanupRequest(BaseModel):
+    dry_run: bool = True
+
+
+class OutputRetentionCleanupResponse(BaseModel):
+    project_id: str
+    dry_run: bool
+    outputs: list[dict]
+
+
 class WorkerRenderCompleteRequest(BaseModel):
     variant: str
     private_locator: str

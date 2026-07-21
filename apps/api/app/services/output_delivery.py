@@ -149,6 +149,55 @@ def cleanup_staged_output_source(*, source_path: Path) -> dict:
         return {"status": "failed", "error": str(exc)[:1000]}
 
 
+def cleanup_due_delivered_output(output: OutputVideo, *, dry_run: bool) -> dict:
+    due = delivered_output_retention_due(output)
+    if not due:
+        cleanup = {"status": "skipped", "reason": "not_due"}
+    elif output.delivery_target != "local_private":
+        cleanup = {"status": "skipped", "reason": "provider_managed_retention", "target": output.delivery_target}
+    elif (output.delivery_json or {}).get("delivered_artifact_cleanup", {}).get("status") == "deleted":
+        cleanup = {"status": "skipped", "reason": "already_deleted"}
+    else:
+        cleanup = cleanup_local_private_delivered_output(output, dry_run=dry_run)
+
+    if not dry_run:
+        append_delivery_lifecycle_detail(output, "delivered_artifact_cleanup", cleanup)
+    return {"id": output.id, "variant": output.variant, "target": output.delivery_target, "retention_due": due, "cleanup": cleanup}
+
+
+def delivered_output_retention_due(output: OutputVideo) -> bool:
+    retention = ((output.delivery_json or {}).get("details") or {}).get("retention") or {}
+    delete_after = retention.get("delete_after")
+    if not isinstance(delete_after, str):
+        return False
+    try:
+        return datetime.fromisoformat(delete_after).date() <= datetime.now(timezone.utc).date()
+    except ValueError:
+        return False
+
+
+def cleanup_local_private_delivered_output(output: OutputVideo, *, dry_run: bool) -> dict:
+    if output.delivery_status != "delivered":
+        return {"status": "skipped", "reason": "not_delivered"}
+    if not output.delivered_locator:
+        return {"status": "skipped", "reason": "missing_delivered_locator"}
+    delivered_path = resolve_local_private_delivered_locator(output.delivered_locator)
+    sidecar_path = delivered_path.with_name(f"{delivered_path.name}.retention.json")
+    if dry_run:
+        return {"status": "would_delete", "path": str(delivered_path), "sidecar_path": str(sidecar_path)}
+    deleted_paths = []
+    missing_paths = []
+    for path in [delivered_path, sidecar_path]:
+        if path.exists():
+            path.unlink()
+            deleted_paths.append(str(path))
+        else:
+            missing_paths.append(str(path))
+    if deleted_paths:
+        return {"status": "deleted", "paths": deleted_paths, "missing_paths": missing_paths}
+    return {"status": "missing", "missing_paths": missing_paths}
+
+
 def retention_metadata() -> dict[str, str]:
     retention_days = max(1, settings.delivered_output_retention_days)
     delete_after = (datetime.now(timezone.utc) + timedelta(days=retention_days)).date().isoformat()
@@ -158,6 +207,21 @@ def retention_metadata() -> dict[str, str]:
         "retention_days": str(retention_days),
         "delete_after": delete_after,
     }
+
+
+def resolve_local_private_delivered_locator(locator: str) -> Path:
+    validate_private_locator(locator)
+    prefix = "file://private/delivered/"
+    if not locator.startswith(prefix):
+        raise ValueError("local private cleanup requires a file://private/delivered locator")
+    relative = Path(locator.removeprefix(prefix))
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError("delivered output locator is unsafe")
+    root = Path(settings.local_private_delivery_root).resolve()
+    delivered_path = (root / relative).resolve()
+    if root not in delivered_path.parents and delivered_path != root:
+        raise ValueError("delivered output locator escapes local private root")
+    return delivered_path
 
 
 def resolve_private_file_locator(locator: str) -> Path:

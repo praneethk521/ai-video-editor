@@ -55,12 +55,13 @@ Set `DELIVERED_OUTPUT_RETENTION_DAYS` and `DELIVERED_OUTPUT_RETENTION_POLICY` to
 
 1. Export or review `/projects/{project_id}/outputs`.
 2. Review `/projects/{project_id}/outputs/retention` for retention metadata, cleanup status, and due items.
-3. Confirm every output that will be deleted has `delivery.status = delivered`.
-4. Confirm the manual upload is complete or explicitly waived.
-5. Delete staged files under `OUTPUT_DELIVERY_LOCAL_ROOT/<project_id>`.
-6. Delete delivered files from the private destination when they exceed the policy window.
-7. Keep API metadata and audit logs until their retention window expires.
-8. Record the cleanup action in the operator change log or incident tracker.
+3. Preview due local-private cleanup with `POST /projects/{project_id}/outputs/retention/cleanup` and `{"dry_run": true}`.
+4. Confirm every output that will be deleted has `delivery.status = delivered`.
+5. Confirm the manual upload is complete or explicitly waived.
+6. Delete due local-private files with `POST /projects/{project_id}/outputs/retention/cleanup` and `{"dry_run": false}`.
+7. For Drive and S3, use provider lifecycle rules or provider-native deletion after the same checks.
+8. Keep API metadata and audit logs until their retention window expires.
+9. Record the cleanup action in the operator change log or incident tracker.
 
 Never delete a failed or `private_staging` output unless the project owner has confirmed the render is abandoned and no retry is needed.
 

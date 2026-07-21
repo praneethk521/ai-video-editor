@@ -17,6 +17,8 @@ from app.schemas.api import (
     IngestRequest,
     IngestResponse,
     OutputResponse,
+    OutputRetentionCleanupRequest,
+    OutputRetentionCleanupResponse,
     OutputRetentionReportResponse,
     PlanRegenerateRequest,
     PlanReviewRequest,
@@ -40,6 +42,7 @@ from app.services.planning import (
     reject_timeline_plan,
 )
 from app.services.rendering import create_render_jobs, dispatch_render_jobs, fail_render_job
+from app.services.output_delivery import cleanup_due_delivered_output
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -417,6 +420,34 @@ def output_retention_report(
     )
 
 
+@router.post("/{project_id}/outputs/retention/cleanup", response_model=OutputRetentionCleanupResponse)
+def cleanup_due_output_retention(
+    project_id: str,
+    payload: OutputRetentionCleanupRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = get_project_or_404(db, project_id, user)
+    rows = db.query(OutputVideo).filter(OutputVideo.project_id == project.id).all()
+    results = [cleanup_due_delivered_output(row, dry_run=payload.dry_run) for row in rows]
+    audit(
+        db,
+        user_id=user.id,
+        project_id=project.id,
+        action="output.retention.cleanup_reviewed" if payload.dry_run else "output.retention.cleanup_completed",
+        correlation_id=request.state.correlation_id,
+        metadata={
+            "dry_run": payload.dry_run,
+            "output_count": len(results),
+            "deleted_count": len([row for row in results if row["cleanup"]["status"] == "deleted"]),
+            "would_delete_count": len([row for row in results if row["cleanup"]["status"] == "would_delete"]),
+        },
+    )
+    db.commit()
+    return OutputRetentionCleanupResponse(project_id=project.id, dry_run=payload.dry_run, outputs=results)
+
+
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_project(
     project_id: str,
@@ -436,6 +467,7 @@ def output_retention_row(row: OutputVideo) -> dict:
     details = delivery_json.get("details") or {}
     retention = details.get("retention") or {}
     cleanup = delivery_json.get("staged_source_cleanup") or {}
+    delivered_cleanup = delivery_json.get("delivered_artifact_cleanup") or {}
     days_until_delete = days_until_retention_delete(retention.get("delete_after"))
     return {
         "id": row.id,
@@ -446,6 +478,7 @@ def output_retention_row(row: OutputVideo) -> dict:
         "has_retention_metadata": bool(retention),
         "retention": retention,
         "cleanup_status": cleanup.get("status"),
+        "delivered_artifact_cleanup_status": delivered_cleanup.get("status"),
         "days_until_delete": days_until_delete,
         "retention_due": days_until_delete is not None and days_until_delete <= 0,
     }

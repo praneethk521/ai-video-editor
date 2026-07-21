@@ -51,6 +51,7 @@ Last updated: 2026-07-16
 - Added operator-facing retention status display for delivered outputs.
 - Added project-level output retention report API for delivered output review.
 - Added dashboard action to load the output retention report.
+- Added delivered-output retention cleanup workflow for due local-private artifacts.
 
 ## Verification
 
@@ -61,4 +62,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add delivered-output retention cleanup workflow for due artifacts.
+- Add dashboard action to preview and run due retention cleanup.
