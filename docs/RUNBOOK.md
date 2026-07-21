@@ -30,3 +30,16 @@
 3. Delete expired temp directories by project/job ID.
 4. Verify delivered output locators point to Drive, `s3://private/`, or private local storage before deleting staged files.
 5. For automatic staged-file cleanup, enable `CLEANUP_STAGED_OUTPUTS_AFTER_DELIVERY=true` and verify `delivery_json.staged_source_cleanup.status` is `deleted`.
+
+## Maintenance: Delivered Output Retention Cleanup
+
+1. Confirm the project owner has completed manual upload or explicitly waived upload.
+2. Review retention state with `GET /projects/{project_id}/outputs/retention`.
+3. Confirm due rows have `retention_due = true`, `status = delivered`, and retention metadata.
+4. Preview local-private cleanup with `POST /projects/{project_id}/outputs/retention/cleanup` and `{"dry_run": true}`.
+5. Confirm preview rows show `cleanup.status = would_delete` only for files that should be removed.
+6. Run local-private cleanup with `POST /projects/{project_id}/outputs/retention/cleanup` and `{"dry_run": false}`.
+7. Verify `delivery_json.delivered_artifact_cleanup.status` is `deleted` or `missing`.
+8. For Drive and S3 due rows, use provider lifecycle rules or provider-native deletion workflows; the API skips them as provider-managed retention.
+9. Do not clean up outputs with `private_staging`, `failed`, or missing retention metadata unless the project owner has abandoned the render.
+10. Record the cleanup action in the operator change log.

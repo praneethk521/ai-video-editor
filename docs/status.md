@@ -53,6 +53,7 @@ Last updated: 2026-07-16
 - Added dashboard action to load the output retention report.
 - Added delivered-output retention cleanup workflow for due local-private artifacts.
 - Added dashboard action to preview and run due retention cleanup.
+- Added retention cleanup operations to the runbook.
 
 ## Verification
 
@@ -63,4 +64,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add retention cleanup operations to the runbook.
+- Add CI or scripted smoke coverage for retention cleanup endpoints.
