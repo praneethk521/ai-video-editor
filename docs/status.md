@@ -66,14 +66,15 @@ Last updated: 2026-07-20
 - Added RBAC schema migration draft.
 - Added RBAC authorization helper skeleton.
 - Wired project read endpoints to RBAC viewer checks while keeping mutating project actions owner-only.
+- Wired user-facing project mutation endpoints to explicit RBAC policies for operator, reviewer, owner, and admin roles.
 
 ## Verification
 
-- API tests: passed locally (`22 passed`).
+- API tests: passed locally (`26 passed`).
 - Worker tests: passed locally (`4 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Wire project mutation endpoints to explicit RBAC role policies.
+- Add scoped service-token authorization for internal worker and orchestration callbacks.
