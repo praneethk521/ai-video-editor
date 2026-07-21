@@ -75,7 +75,7 @@ Create this repository and enable:
 - Dependabot alerts and updates.
 - GitHub Actions OIDC for cloud deploy credentials.
 
-For public repositories, keep using `.env.example` only and never commit source media, rendered outputs, local databases, or provider credentials. See `docs/SECURITY_CHECKLIST.md` for the full checklist.
+For public repositories, keep using `.env.example` only and never commit source media, rendered outputs, local databases, or provider credentials. See `docs/SECURITY_CHECKLIST.md` for the full checklist and `docs/BRANCH_PROTECTION.md` for required checks.
 
 ## Tests
 
@@ -95,3 +95,4 @@ pytest
 - Output delivery deployment: `docs/OUTPUT_DELIVERY_DEPLOYMENT.md`
 - Local smoke workflow: `docs/LOCAL_SMOKE_WORKFLOW.md`
 - Retention policy: `docs/RETENTION_POLICY.md`
+- Branch protection: `docs/BRANCH_PROTECTION.md`

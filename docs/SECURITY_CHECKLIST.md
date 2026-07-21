@@ -5,6 +5,7 @@
 - Public or private source repositories are acceptable only if media, outputs, local databases, and real secrets remain untracked.
 - Enable branch protection on `main`.
 - Require at least one approving review.
+- Require the checks listed in `docs/BRANCH_PROTECTION.md`.
 - Enable secret scanning and push protection.
 - Enable dependency scanning and Dependabot.
 - Use GitHub Actions OIDC for cloud deploy permissions.

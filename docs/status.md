@@ -56,6 +56,7 @@ Last updated: 2026-07-16
 - Added retention cleanup operations to the runbook.
 - Added scripted smoke coverage for retention cleanup endpoints.
 - Added CI shell linting for smoke scripts.
+- Added branch protection and required check documentation for the public repo.
 
 ## Verification
 
@@ -66,4 +67,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add branch protection and required check documentation for the public repo.
+- Add release readiness checklist for the current MVP slice.
