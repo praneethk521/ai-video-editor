@@ -61,6 +61,7 @@ Last updated: 2026-07-16
 - Added release notes template for MVP deployments.
 - Added version tagging guidance for MVP releases.
 - Added deploy and rollback checklist for MVP releases.
+- Added production gap tracker for M4 hardening work.
 
 ## Verification
 
@@ -71,4 +72,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add production gap tracker for M4 hardening work.
+- Add RBAC design notes for the next production hardening slice.

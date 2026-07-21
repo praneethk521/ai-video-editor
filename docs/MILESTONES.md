@@ -53,3 +53,4 @@ Status: Planned
 - Cost controls per project.
 - Full Kubernetes/ECS deployment.
 - Branch protection and required PR reviews.
+- Production gap tracking with exit criteria.
