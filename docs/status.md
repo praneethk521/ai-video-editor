@@ -69,14 +69,15 @@ Last updated: 2026-07-20
 - Wired user-facing project mutation endpoints to explicit RBAC policies for operator, reviewer, owner, and admin roles.
 - Added scoped service-token authorization for internal worker and orchestration callbacks.
 - Added project authorization outcome audit events and dashboard role-aware controls.
+- Added configurable project workflow rate limits for sync, analysis, regeneration, rendering, and retention cleanup.
 
 ## Verification
 
-- API tests: passed locally (`28 passed`).
+- API tests: passed locally (`29 passed`).
 - Worker tests: passed locally (`4 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Add rate limits and quota controls for expensive project workflows.
+- Add project-level usage quotas and cost controls for analysis, render, storage, and delivery workflows.

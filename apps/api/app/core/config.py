@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     render_queue_backend: str = "rq"
     render_job_timeout_seconds: int = 1800
+    rate_limits_enabled: bool = True
+    expensive_workflow_rate_limit_per_minute: int = 20
+    render_rate_limit_per_minute: int = 10
+    retention_cleanup_rate_limit_per_minute: int = 6
     google_client_id: str = ""
     google_client_secret: str = Field(default="", repr=False)
     google_oauth_redirect_uri: str = "http://localhost:8000/projects/{project_id}/connect-drive/callback"

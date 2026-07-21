@@ -43,6 +43,7 @@ from app.services.planning import (
     regenerate_timeline_plans,
     reject_timeline_plan,
 )
+from app.services.rate_limits import enforce_project_rate_limit
 from app.services.rendering import create_render_jobs, dispatch_render_jobs, fail_render_job
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -233,6 +234,7 @@ def sync_drive(
     project = get_project_for_role_or_404(
         db, project_id, user, minimum_role="operator", request=request, requested_action="drive.folder.sync"
     )
+    enforce_project_rate_limit(request, project_id=project.id, action="drive.folder.sync")
     try:
         result = sync_drive_folder(db, project_id=project.id)
     except ValueError as exc:
@@ -265,6 +267,7 @@ def analyze(
     project = get_project_for_role_or_404(
         db, project_id, user, minimum_role="operator", request=request, requested_action="project.analyze"
     )
+    enforce_project_rate_limit(request, project_id=project.id, action="project.analyze")
     try:
         analysis, plans = analyze_and_plan(db, project_id=project.id)
     except AnalysisProviderError as exc:
@@ -327,6 +330,7 @@ def regenerate_plans(
     project = get_project_for_role_or_404(
         db, project_id, user, minimum_role="operator", request=request, requested_action="timeline.plans.regenerate"
     )
+    enforce_project_rate_limit(request, project_id=project.id, action="timeline.plans.regenerate")
     try:
         plans = regenerate_timeline_plans(db, project_id=project.id, variants=payload.variants, notes=payload.notes)
     except ValueError as exc:
@@ -410,6 +414,7 @@ def render(
     project = get_project_for_role_or_404(
         db, project_id, user, minimum_role="operator", request=request, requested_action="render.jobs.queue"
     )
+    enforce_project_rate_limit(request, project_id=project.id, action="render.jobs.queue")
     try:
         jobs, queue_items = create_render_jobs(db, project_id=project.id, variants=payload.variants)
     except ValueError as exc:
@@ -531,6 +536,11 @@ def cleanup_due_output_retention(
         minimum_role=minimum_role,
         request=request,
         requested_action="outputs.retention.cleanup_preview" if payload.dry_run else "outputs.retention.cleanup_execute",
+    )
+    enforce_project_rate_limit(
+        request,
+        project_id=project.id,
+        action="outputs.retention.cleanup_preview" if payload.dry_run else "outputs.retention.cleanup_execute",
     )
     rows = db.query(OutputVideo).filter(OutputVideo.project_id == project.id).all()
     results = [cleanup_due_delivered_output(row, dry_run=payload.dry_run) for row in rows]

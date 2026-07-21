@@ -5,7 +5,7 @@ This tracker captures remaining M4 hardening work before treating the platform a
 | Area | Priority | Status | Acceptance Signal |
 | --- | --- | --- | --- |
 | RBAC | P0 | In progress | Roles restrict project, output, audit, and internal operations by user/team. |
-| Rate limits and quotas | P0 | Planned | API rejects abusive or runaway requests by token, user, and project. |
+| Rate limits and quotas | P0 | In progress | API rejects abusive or runaway requests by token, user, and project. |
 | Cost controls | P0 | Planned | Analysis, render, storage, and delivery costs are tracked and capped per project. |
 | n8n access control | P0 | Deployment-owned | n8n is behind SSO, VPN, or private network access with encrypted credentials. |
 | Provider-native retention deletion | P1 | Planned | Drive and S3 due cleanup can be executed or reconciled safely with audit evidence. |
