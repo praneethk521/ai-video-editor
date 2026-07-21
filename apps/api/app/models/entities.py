@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import CheckConstraint, DateTime, Enum, Float, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -52,6 +52,24 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class Team(Base):
+    __tablename__ = "teams"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(160))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TeamMember(Base):
+    __tablename__ = "team_members"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
+    team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    role: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class Project(Base):
     __tablename__ = "projects"
 
@@ -63,6 +81,38 @@ class Project(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     media_assets: Mapped[list["MediaAsset"]] = relationship(back_populates="project")
+
+
+class ProjectMember(Base):
+    __tablename__ = "project_members"
+    __table_args__ = (
+        CheckConstraint(
+            "(user_id IS NOT NULL AND team_id IS NULL) OR (user_id IS NULL AND team_id IS NOT NULL)",
+            name="ck_project_member_user_or_team",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    user_id: Mapped[Optional[str]] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    team_id: Mapped[Optional[str]] = mapped_column(ForeignKey("teams.id"), nullable=True, index=True)
+    role: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ServiceToken(Base):
+    __tablename__ = "service_tokens"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(160))
+    token_hash: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    scope: Mapped[str] = mapped_column(String(64), default="worker")
+    role: Mapped[str] = mapped_column(String(32), default="worker")
+    status: Mapped[str] = mapped_column(String(32), default="active")
+    project_id: Mapped[Optional[str]] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class OAuthConnection(Base):

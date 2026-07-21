@@ -63,6 +63,7 @@ Last updated: 2026-07-16
 - Added deploy and rollback checklist for MVP releases.
 - Added production gap tracker for M4 hardening work.
 - Added RBAC design notes for the next production hardening slice.
+- Added RBAC schema migration draft.
 
 ## Verification
 
@@ -73,4 +74,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add RBAC schema migration draft.
+- Add RBAC authorization helper skeleton.
