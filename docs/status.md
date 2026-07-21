@@ -52,6 +52,7 @@ Last updated: 2026-07-16
 - Added project-level output retention report API for delivered output review.
 - Added dashboard action to load the output retention report.
 - Added delivered-output retention cleanup workflow for due local-private artifacts.
+- Added dashboard action to preview and run due retention cleanup.
 
 ## Verification
 
@@ -62,4 +63,4 @@ Last updated: 2026-07-16
 
 ## Next
 
-- Add dashboard action to preview and run due retention cleanup.
+- Add retention cleanup operations to the runbook.

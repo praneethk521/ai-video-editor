@@ -100,6 +100,17 @@ type OutputRetentionRow = {
   cleanup_status?: string | null;
 };
 
+type OutputCleanupRow = {
+  id: string;
+  variant: string;
+  target: string;
+  retention_due: boolean;
+  cleanup: {
+    status: string;
+    reason?: string;
+  };
+};
+
 type AnalysisResult = {
   id: string;
   provider: string;
@@ -153,6 +164,7 @@ export default function Page() {
   const [plans, setPlans] = useState<TimelinePlan[]>([]);
   const [outputs, setOutputs] = useState<OutputVideo[]>([]);
   const [retentionRows, setRetentionRows] = useState<OutputRetentionRow[]>([]);
+  const [cleanupRows, setCleanupRows] = useState<OutputCleanupRow[]>([]);
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -229,6 +241,7 @@ export default function Page() {
       setPlans([]);
       setOutputs([]);
       setRetentionRows([]);
+      setCleanupRows([]);
       setAnalysisResults([]);
     });
   }
@@ -319,6 +332,19 @@ export default function Page() {
       if (!projectId) return;
       const response = await api<{ outputs: OutputRetentionRow[] }>(`/projects/${projectId}/outputs/retention`);
       setRetentionRows(response.outputs);
+    });
+  }
+
+  async function runRetentionCleanup(dryRun: boolean) {
+    await run(dryRun ? "Retention cleanup preview loaded" : "Retention cleanup completed", async () => {
+      if (!projectId) return;
+      const response = await api<{ outputs: OutputCleanupRow[] }>(`/projects/${projectId}/outputs/retention/cleanup`, {
+        method: "POST",
+        body: JSON.stringify({ dry_run: dryRun })
+      });
+      setCleanupRows(response.outputs);
+      const report = await api<{ outputs: OutputRetentionRow[] }>(`/projects/${projectId}/outputs/retention`);
+      setRetentionRows(report.outputs);
     });
   }
 
@@ -550,6 +576,20 @@ export default function Page() {
                 >
                   Retention
                 </button>
+                <button
+                  className="ghost"
+                  onClick={() => void runRetentionCleanup(true)}
+                  disabled={!projectId || busy !== null}
+                >
+                  Preview cleanup
+                </button>
+                <button
+                  className="reject"
+                  onClick={() => void runRetentionCleanup(false)}
+                  disabled={!projectId || busy !== null}
+                >
+                  Run cleanup
+                </button>
               </div>
             </div>
             <div className="outputList">
@@ -595,6 +635,19 @@ export default function Page() {
                       {row.retention_due ? "due" : `${row.days_until_delete ?? "n/a"}d left`}
                     </span>
                     <span>{row.cleanup_status ? `cleanup ${row.cleanup_status}` : row.target}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {cleanupRows.length > 0 ? (
+              <div className="retentionList">
+                {cleanupRows.map((row) => (
+                  <div className="retentionRow" key={`${row.id}-${row.cleanup.status}`}>
+                    <span>{variantLabel(row.variant)}</span>
+                    <span className={`pill ${row.cleanup.status === "deleted" ? "succeeded" : "queued"}`}>
+                      {row.cleanup.status}
+                    </span>
+                    <span>{row.cleanup.reason ?? row.target}</span>
                   </div>
                 ))}
               </div>
