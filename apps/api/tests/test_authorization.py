@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from app.core.security import CurrentUser, get_current_user
-from app.models.entities import Project, ProjectMember, Team, TeamMember, TimelinePlan
+from app.core.security import CurrentUser, get_current_user, hash_service_token
+from app.models.entities import Project, ProjectMember, RenderJob, ServiceToken, Team, TeamMember, TimelinePlan
 from app.services.authorization import project_role_for_user, require_project_role, role_allows
 
 
@@ -219,3 +219,80 @@ def test_project_read_denies_non_member(client, auth_headers, db_session):
         client.app.dependency_overrides.clear()
 
     assert response.status_code == 403
+
+
+def test_project_scoped_service_token_can_update_own_render_job(client, db_session):
+    project = Project(name="Scoped worker project", owner_user_id="owner-user")
+    db_session.add(project)
+    db_session.flush()
+    plan = TimelinePlan(
+        project_id=project.id,
+        variant="youtube_16x9",
+        confidence_score=0.9,
+        plan_json={"confidence_score": 0.9, "tracks": []},
+    )
+    db_session.add(plan)
+    db_session.flush()
+    job = RenderJob(project_id=project.id, timeline_plan_id=plan.id, variant="youtube_16x9")
+    token_value = "worker-token"
+    db_session.add_all(
+        [
+            job,
+            ServiceToken(
+                name="Project render worker",
+                token_hash=hash_service_token(token_value),
+                scope="render",
+                role="worker",
+                project_id=project.id,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    headers = {"Authorization": f"Bearer {token_value}"}
+    response = client.post(f"/internal/render-jobs/{job.id}/running", headers=headers)
+    user_api_response = client.get(f"/projects/{project.id}/status", headers=headers)
+
+    db_session.refresh(job)
+    assert response.status_code == 204
+    assert job.status.value == "running"
+    assert user_api_response.status_code == 401
+
+
+def test_project_scoped_service_token_cannot_update_other_project_job(client, db_session):
+    allowed_project = Project(name="Allowed project", owner_user_id="owner-user")
+    other_project = Project(name="Other project", owner_user_id="owner-user")
+    db_session.add_all([allowed_project, other_project])
+    db_session.flush()
+    other_plan = TimelinePlan(
+        project_id=other_project.id,
+        variant="youtube_16x9",
+        confidence_score=0.9,
+        plan_json={"confidence_score": 0.9, "tracks": []},
+    )
+    db_session.add(other_plan)
+    db_session.flush()
+    other_job = RenderJob(project_id=other_project.id, timeline_plan_id=other_plan.id, variant="youtube_16x9")
+    token_value = "wrong-project-worker-token"
+    db_session.add_all(
+        [
+            other_job,
+            ServiceToken(
+                name="Allowed project worker",
+                token_hash=hash_service_token(token_value),
+                scope="render",
+                role="worker",
+                project_id=allowed_project.id,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.post(
+        f"/internal/render-jobs/{other_job.id}/running",
+        headers={"Authorization": f"Bearer {token_value}"},
+    )
+
+    db_session.refresh(other_job)
+    assert response.status_code == 403
+    assert other_job.status.value == "queued"

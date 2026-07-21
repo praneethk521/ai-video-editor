@@ -3,8 +3,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import CurrentServiceToken, get_current_service_token, require_service_scope
 from app.db.session import get_db
+from app.models.entities import MediaAsset, OutputVideo, RenderJob
 from app.schemas.api import (
     MalwareScanResultRequest,
     OutputDeliverRequest,
@@ -25,12 +26,13 @@ router = APIRouter(prefix="/internal", tags=["internal"])
 def analysis_provider_health(
     request: Request,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    token: CurrentServiceToken = Depends(get_current_service_token),
 ):
+    require_service_scope(token, required_scope="analysis")
     health = get_analysis_provider().health()
     audit(
         db,
-        user_id=user.id,
+        user_id=token.id,
         project_id=None,
         action="analysis.provider.health",
         correlation_id=request.state.correlation_id,
@@ -44,12 +46,13 @@ def analysis_provider_health(
 def analysis_provider_metrics(
     request: Request,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    token: CurrentServiceToken = Depends(get_current_service_token),
 ):
+    require_service_scope(token, required_scope="analysis")
     metrics = get_analysis_provider_metrics()
     audit(
         db,
-        user_id=user.id,
+        user_id=token.id,
         project_id=None,
         action="analysis.provider.metrics",
         correlation_id=request.state.correlation_id,
@@ -64,15 +67,16 @@ def render_job_running(
     render_job_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    token: CurrentServiceToken = Depends(get_current_service_token),
 ):
+    get_render_job_for_service(db, render_job_id=render_job_id, token=token)
     try:
         job = mark_render_job_running(db, render_job_id=render_job_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     audit(
         db,
-        user_id=user.id,
+        user_id=token.id,
         project_id=job.project_id,
         action="render.job.running",
         correlation_id=request.state.correlation_id,
@@ -88,8 +92,9 @@ def media_asset_malware_scan(
     payload: MalwareScanResultRequest,
     request: Request,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    token: CurrentServiceToken = Depends(get_current_service_token),
 ):
+    get_media_asset_for_service(db, media_asset_id=media_asset_id, token=token)
     try:
         asset = record_malware_scan_result(
             db,
@@ -102,7 +107,7 @@ def media_asset_malware_scan(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     audit(
         db,
-        user_id=user.id,
+        user_id=token.id,
         project_id=asset.project_id,
         action="media.malware_scan.recorded",
         correlation_id=request.state.correlation_id,
@@ -117,15 +122,16 @@ def scan_media_asset_for_malware(
     media_asset_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    token: CurrentServiceToken = Depends(get_current_service_token),
 ):
+    get_media_asset_for_service(db, media_asset_id=media_asset_id, token=token)
     try:
         asset = scan_media_asset(db, media_asset_id=media_asset_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     audit(
         db,
-        user_id=user.id,
+        user_id=token.id,
         project_id=asset.project_id,
         action="media.malware_scan.completed",
         correlation_id=request.state.correlation_id,
@@ -141,15 +147,16 @@ def render_job_complete(
     payload: WorkerRenderCompleteRequest,
     request: Request,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    token: CurrentServiceToken = Depends(get_current_service_token),
 ):
+    get_render_job_for_service(db, render_job_id=render_job_id, token=token)
     try:
         output = complete_render_job(db, render_job_id=render_job_id, result=payload)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     audit(
         db,
-        user_id=user.id,
+        user_id=token.id,
         project_id=output.project_id,
         action="render.job.completed",
         correlation_id=request.state.correlation_id,
@@ -170,15 +177,16 @@ def render_job_fail(
     payload: WorkerRenderFailedRequest,
     request: Request,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    token: CurrentServiceToken = Depends(get_current_service_token),
 ):
+    get_render_job_for_service(db, render_job_id=render_job_id, token=token)
     try:
         job = fail_render_job(db, render_job_id=render_job_id, error_message=payload.error_message)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     audit(
         db,
-        user_id=user.id,
+        user_id=token.id,
         project_id=job.project_id,
         action="render.job.failed",
         correlation_id=request.state.correlation_id,
@@ -194,8 +202,9 @@ def output_video_delivery(
     payload: OutputDeliveryRequest,
     request: Request,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    token: CurrentServiceToken = Depends(get_current_service_token),
 ):
+    get_output_video_for_service(db, output_video_id=output_video_id, token=token)
     try:
         output = record_output_delivery(
             db,
@@ -209,7 +218,7 @@ def output_video_delivery(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     audit(
         db,
-        user_id=user.id,
+        user_id=token.id,
         project_id=output.project_id,
         action="output.delivery.recorded",
         correlation_id=request.state.correlation_id,
@@ -225,8 +234,9 @@ def output_video_deliver(
     payload: OutputDeliverRequest,
     request: Request,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    token: CurrentServiceToken = Depends(get_current_service_token),
 ):
+    get_output_video_for_service(db, output_video_id=output_video_id, token=token)
     try:
         output = deliver_output_video(db, output_video_id=output_video_id, target=payload.target)
     except ValueError as exc:
@@ -240,7 +250,7 @@ def output_video_deliver(
         if output is not None:
             audit(
                 db,
-                user_id=user.id,
+                user_id=token.id,
                 project_id=output.project_id,
                 action="output.delivery.failed",
                 correlation_id=request.state.correlation_id,
@@ -250,7 +260,7 @@ def output_video_deliver(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     audit(
         db,
-        user_id=user.id,
+        user_id=token.id,
         project_id=output.project_id,
         action="output.delivery.completed",
         correlation_id=request.state.correlation_id,
@@ -258,3 +268,27 @@ def output_video_deliver(
     )
     db.commit()
     return None
+
+
+def get_render_job_for_service(db: Session, *, render_job_id: str, token: CurrentServiceToken) -> RenderJob:
+    job = db.get(RenderJob, render_job_id)
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="render job not found")
+    require_service_scope(token, required_scope="render", project_id=job.project_id)
+    return job
+
+
+def get_media_asset_for_service(db: Session, *, media_asset_id: str, token: CurrentServiceToken) -> MediaAsset:
+    asset = db.get(MediaAsset, media_asset_id)
+    if asset is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="media asset not found")
+    require_service_scope(token, required_scope="scan", project_id=asset.project_id)
+    return asset
+
+
+def get_output_video_for_service(db: Session, *, output_video_id: str, token: CurrentServiceToken) -> OutputVideo:
+    output = db.get(OutputVideo, output_video_id)
+    if output is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="output video not found")
+    require_service_scope(token, required_scope="delivery", project_id=output.project_id)
+    return output

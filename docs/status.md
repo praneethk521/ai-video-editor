@@ -67,14 +67,15 @@ Last updated: 2026-07-20
 - Added RBAC authorization helper skeleton.
 - Wired project read endpoints to RBAC viewer checks while keeping mutating project actions owner-only.
 - Wired user-facing project mutation endpoints to explicit RBAC policies for operator, reviewer, owner, and admin roles.
+- Added scoped service-token authorization for internal worker and orchestration callbacks.
 
 ## Verification
 
-- API tests: passed locally (`26 passed`).
+- API tests: passed locally (`28 passed`).
 - Worker tests: passed locally (`4 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Add scoped service-token authorization for internal worker and orchestration callbacks.
+- Add authorization outcome audit events and dashboard role-aware controls.
