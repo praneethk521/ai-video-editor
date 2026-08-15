@@ -21,6 +21,8 @@ spec:
             - secretRef:
                 name: ai-video-api-secrets
           env:
+            - name: RATE_LIMIT_BACKEND
+              value: redis
             - name: OUTPUT_DELIVERY_LOCAL_ROOT
               value: /tmp/ai-video-editor/outputs
             - name: LOCAL_PRIVATE_DELIVERY_ROOT

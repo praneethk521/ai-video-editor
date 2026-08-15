@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -14,6 +16,8 @@ class Settings(BaseSettings):
     render_queue_backend: str = "rq"
     render_job_timeout_seconds: int = 1800
     rate_limits_enabled: bool = True
+    rate_limit_backend: Literal["memory", "redis"] = "memory"
+    rate_limit_redis_prefix: str = "ai-video-editor:rate-limit"
     expensive_workflow_rate_limit_per_minute: int = 20
     render_rate_limit_per_minute: int = 10
     retention_cleanup_rate_limit_per_minute: int = 6

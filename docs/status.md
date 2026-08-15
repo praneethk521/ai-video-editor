@@ -74,14 +74,16 @@ Last updated: 2026-08-15
 - Added durable delivered-storage, delivery-attempt, and estimated provider-cost accounting with configurable project caps.
 - Added operator-only project usage summaries with current retained private-output storage totals.
 - Added a role-aware dashboard usage panel with daily limit progress and automatic workflow refreshes.
+- Added a shared Redis fixed-window rate-limit backend with atomic expiry, fail-closed outage handling, and deployment wiring.
+- Made PostgreSQL and SQLite project quota increments atomic under concurrent requests.
 
 ## Verification
 
-- API tests: passed locally (`31 passed`).
+- API tests: passed locally (`33 passed`).
 - Worker tests: passed locally (`4 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Move rate limiting to a shared Redis backend and make quota counter updates atomic for multi-replica deployments.
+- Add Prometheus-compatible API and worker metrics for ingest, analysis, render, delivery, retention, queue, quota, and rate-limit health.

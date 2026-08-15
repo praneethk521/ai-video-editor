@@ -38,6 +38,7 @@ services:
     env_file:
       - ../../.env
     environment:
+      RATE_LIMIT_BACKEND: redis
       OUTPUT_DELIVERY_LOCAL_ROOT: /tmp/ai-video-editor/outputs
       LOCAL_PRIVATE_DELIVERY_ROOT: /tmp/ai-video-editor/delivered
     depends_on:
