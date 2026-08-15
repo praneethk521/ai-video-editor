@@ -5,6 +5,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.security import CurrentUser, get_current_user
 from app.db.session import get_db
 from app.models.entities import MediaAsset, OutputVideo, Project, ProjectStatus, RenderJob
@@ -25,6 +26,7 @@ from app.schemas.api import (
     ProjectCreate,
     ProjectRead,
     ProjectStatusResponse,
+    ProjectUsageResponse,
     RenderRequest,
     RenderResponse,
     TimelinePlanRead,
@@ -43,7 +45,13 @@ from app.services.planning import (
     regenerate_timeline_plans,
     reject_timeline_plan,
 )
-from app.services.quotas import ANALYSIS_REQUESTS, RENDER_JOBS, consume_project_quota
+from app.services.quotas import (
+    ANALYSIS_REQUESTS,
+    PROVIDER_COST_CENTS,
+    RENDER_JOBS,
+    consume_project_quota,
+    project_usage_summary,
+)
 from app.services.rate_limits import enforce_project_rate_limit
 from app.services.rendering import create_render_jobs, dispatch_render_jobs, fail_render_job
 
@@ -270,6 +278,13 @@ def analyze(
     )
     enforce_project_rate_limit(request, project_id=project.id, action="project.analyze")
     consume_project_quota(db, project_id=project.id, metric=ANALYSIS_REQUESTS)
+    estimated_provider_cost = settings.analysis_provider_estimated_cost_cents_per_request
+    consume_project_quota(
+        db,
+        project_id=project.id,
+        metric=PROVIDER_COST_CENTS,
+        amount=estimated_provider_cost,
+    )
     db.commit()
     try:
         analysis, plans = analyze_and_plan(db, project_id=project.id)
@@ -281,7 +296,14 @@ def analyze(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     project.status = ProjectStatus.planned
-    audit(db, user_id=user.id, project_id=project_id, action="project.analyzed", correlation_id=request.state.correlation_id)
+    audit(
+        db,
+        user_id=user.id,
+        project_id=project_id,
+        action="project.analyzed",
+        correlation_id=request.state.correlation_id,
+        metadata={"provider_cost_cents_estimate": estimated_provider_cost},
+    )
     db.commit()
     return AnalyzeResponse(analysis_id=analysis.id, timeline_plan_ids=[plan.id for plan in plans])
 
@@ -493,6 +515,7 @@ def outputs(
                 "width": row.width,
                 "height": row.height,
                 "duration_seconds": row.duration_seconds,
+                "file_size_bytes": row.file_size_bytes,
                 "private_locator": row.private_locator,
                 "upload_package": row.upload_package_json,
                 "validation": row.validation_json,
@@ -506,6 +529,19 @@ def outputs(
             for row in rows
         ]
     )
+
+
+@router.get("/{project_id}/usage", response_model=ProjectUsageResponse)
+def project_usage(
+    project_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="operator", request=request, requested_action="project.usage.read"
+    )
+    return ProjectUsageResponse(**project_usage_summary(db, project_id=project.id))
 
 
 @router.get("/{project_id}/outputs/retention", response_model=OutputRetentionReportResponse)

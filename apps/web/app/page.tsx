@@ -5,6 +5,7 @@ import {
   Clapperboard,
   FileVideo,
   FolderSync,
+  Gauge,
   GitBranch,
   Loader2,
   Play,
@@ -65,6 +66,7 @@ type OutputVideo = {
   width: number;
   height: number;
   duration_seconds: number;
+  file_size_bytes: number;
   private_locator: string;
   validation?: {
     status?: string;
@@ -125,6 +127,24 @@ type AnalysisResult = {
   };
 };
 
+type UsageMetric = {
+  metric: string;
+  label: string;
+  unit: "bytes" | "cents" | "requests" | "jobs" | "attempts";
+  used: number;
+  limit: number;
+  remaining: number;
+};
+
+type ProjectUsage = {
+  project_id: string;
+  window_start: string;
+  window_end: string;
+  metrics: UsageMetric[];
+  active_delivered_storage_bytes: number;
+  active_delivered_output_count: number;
+};
+
 type LogEntry = {
   tone: "ok" | "warn" | "error";
   message: string;
@@ -164,6 +184,24 @@ function cleanupSummary(output: OutputVideo) {
   return status ? `Staged cleanup ${status}` : null;
 }
 
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let unit = units[0];
+  for (let index = 1; index < units.length && value >= 1024; index += 1) {
+    value /= 1024;
+    unit = units[index];
+  }
+  return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${unit}`;
+}
+
+function formatUsageValue(value: number, unit: UsageMetric["unit"]) {
+  if (unit === "bytes") return formatBytes(value);
+  if (unit === "cents") return `$${(value / 100).toFixed(2)}`;
+  return value.toLocaleString();
+}
+
 export default function Page() {
   const [apiBase, setApiBase] = useState(defaultApiBase);
   const [apiToken, setApiToken] = useState("");
@@ -177,6 +215,7 @@ export default function Page() {
   const [retentionRows, setRetentionRows] = useState<OutputRetentionRow[]>([]);
   const [cleanupRows, setCleanupRows] = useState<OutputCleanupRow[]>([]);
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
+  const [usage, setUsage] = useState<ProjectUsage | null>(null);
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
@@ -233,6 +272,18 @@ export default function Page() {
     setStatus(nextStatus);
   }
 
+  async function refreshUsage(targetProjectId = projectId) {
+    if (!targetProjectId || !canOperate) return;
+    const response = await api<ProjectUsage>(`/projects/${targetProjectId}/usage`);
+    setUsage(response);
+  }
+
+  async function refreshOverview() {
+    await run("Project overview refreshed", async () => {
+      await Promise.all([refreshStatus(), refreshUsage()]);
+    });
+  }
+
   async function refreshPlans(targetProjectId = projectId) {
     if (!targetProjectId) return;
     const response = await api<{ plans: TimelinePlan[] }>(`/projects/${targetProjectId}/plans`);
@@ -258,6 +309,7 @@ export default function Page() {
       setRetentionRows([]);
       setCleanupRows([]);
       setAnalysisResults([]);
+      setUsage(null);
     });
   }
 
@@ -287,6 +339,7 @@ export default function Page() {
       await refreshStatus();
       await refreshAnalysis();
       await refreshPlans();
+      await refreshUsage();
     });
   }
 
@@ -327,12 +380,14 @@ export default function Page() {
         body: JSON.stringify({ variants: ["youtube_16x9", "shorts_9x16"] })
       });
       await refreshStatus();
+      await refreshUsage();
     });
   }
 
   async function loadOutputs() {
     await run("Outputs loaded", async () => {
       await refreshOutputs();
+      await refreshUsage();
     });
   }
 
@@ -370,6 +425,7 @@ export default function Page() {
         body: JSON.stringify({ target: output.delivery?.target ?? "drive" })
       });
       await refreshOutputs();
+      await refreshUsage();
     });
   }
 
@@ -396,7 +452,7 @@ export default function Page() {
             <p>Private Drive media, approved timelines, manual upload outputs.</p>
           </div>
           <div className="topActions">
-            <button className="ghost" onClick={() => void refreshStatus()} disabled={!projectId || busy !== null || !canView}>
+            <button className="ghost" onClick={() => void refreshOverview()} disabled={!projectId || busy !== null || !canView}>
               <RefreshCw size={16} />
               Refresh
             </button>
@@ -431,6 +487,48 @@ export default function Page() {
             <span>Renders</span>
             <strong>{status?.render_jobs.length ?? 0} jobs</strong>
           </article>
+        </section>
+
+        <section className="panel usagePanel">
+          <div className="panelHeader">
+            <div className="usageHeading">
+              <Gauge size={18} />
+              <h2>Daily Usage</h2>
+            </div>
+            <button className="ghost" onClick={() => void refreshUsage()} disabled={!projectId || busy !== null || !canOperate}>
+              <RefreshCw size={15} />
+              Refresh
+            </button>
+          </div>
+          <div className="usageGrid">
+            {(usage?.metrics ?? []).map((metric) => {
+              const percent = metric.limit > 0 ? Math.min((metric.used / metric.limit) * 100, 100) : 0;
+              return (
+                <div className="usageMetric" key={metric.metric}>
+                  <div className="usageMetricTopline">
+                    <span>{metric.label}</span>
+                    <strong>
+                      {formatUsageValue(metric.used, metric.unit)} / {formatUsageValue(metric.limit, metric.unit)}
+                    </strong>
+                  </div>
+                  <div className="usageMeter" role="progressbar" aria-valuenow={metric.used} aria-valuemin={0} aria-valuemax={metric.limit}>
+                    <span style={{ width: `${percent}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+            {usage ? (
+              <div className="usageMetric activeStorageMetric">
+                <div className="usageMetricTopline">
+                  <span>Currently retained outputs</span>
+                  <strong>{formatBytes(usage.active_delivered_storage_bytes)}</strong>
+                </div>
+                <span className="muted">{usage.active_delivered_output_count} private outputs</span>
+              </div>
+            ) : (
+              <div className="emptyState">No usage loaded</div>
+            )}
+          </div>
         </section>
 
         <section className="controlGrid">

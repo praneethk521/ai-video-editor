@@ -45,7 +45,7 @@ Status: In progress
 
 ## M4 - Production Hardening
 
-Status: Planned
+Status: In progress
 
 - SSO/VPN-protected n8n.
 - RBAC.

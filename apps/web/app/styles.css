@@ -190,6 +190,73 @@ p {
   margin-bottom: 18px;
 }
 
+.usagePanel {
+  margin-bottom: 18px;
+}
+
+.usageHeading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.usageHeading svg {
+  color: var(--accent-strong);
+}
+
+.usageGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.usageMetric {
+  min-height: 76px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 11px 12px;
+  display: grid;
+  align-content: space-between;
+  gap: 10px;
+}
+
+.usageMetricTopline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.usageMetricTopline span,
+.usageMetric > .muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.usageMetricTopline strong {
+  font-size: 13px;
+  text-align: right;
+}
+
+.usageMeter {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #e7edf1;
+}
+
+.usageMeter span {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  background: var(--accent);
+}
+
+.activeStorageMetric {
+  background: #f7faf9;
+}
+
 .statusCard,
 .panel,
 .planCard {
@@ -416,7 +483,8 @@ p {
 
 @media (max-width: 1100px) {
   .controlGrid,
-  .bottomGrid {
+  .bottomGrid,
+  .usageGrid {
     grid-template-columns: 1fr;
   }
 }

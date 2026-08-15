@@ -306,6 +306,19 @@ def test_output_delivery_failure_is_recorded_and_retryable(client, auth_headers,
     retried_output = retried_outputs.json()["outputs"][0]
     assert retried_output["delivery"]["status"] == "delivered"
 
+    repeated = client.post(
+        f"/internal/output-videos/{output['id']}/deliver",
+        json={"target": "local_private"},
+        headers=auth_headers,
+    )
+    assert repeated.status_code == 204
+    usage = client.get(f"/projects/{project['id']}/usage", headers=auth_headers).json()
+    usage_metrics = {row["metric"]: row["used"] for row in usage["metrics"]}
+    assert usage_metrics["delivery_attempts"] == 2
+    assert usage_metrics["delivered_storage_bytes"] == output["file_size_bytes"]
+    assert usage["active_delivered_storage_bytes"] == output["file_size_bytes"]
+    assert usage["active_delivered_output_count"] == 1
+
 
 def test_local_private_smoke_workflow_project_to_delivery(client, auth_headers, monkeypatch, tmp_path: Path):
     staging_root = tmp_path / "staging"

@@ -16,6 +16,13 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.entities import OutputVideo
 from app.services.media import decrypt_token_payload, latest_connected_drive_connection
+from app.services.quotas import (
+    DELIVERED_STORAGE_BYTES,
+    DELIVERY_ATTEMPTS,
+    consume_project_quota,
+    ensure_project_quota_available,
+    record_project_usage,
+)
 
 
 def add_shared_path() -> None:
@@ -53,7 +60,16 @@ def deliver_output_video(db: Session, *, output_video_id: str, target: str | Non
     delivery_target = target or output.delivery_target
     if delivery_target not in ALLOWED_DELIVERY_TARGETS:
         raise ValueError("unsupported output delivery target")
+    if output.delivery_status == "delivered" and output.delivered_locator:
+        return output
 
+    consume_project_quota(db, project_id=output.project_id, metric=DELIVERY_ATTEMPTS)
+    ensure_project_quota_available(
+        db,
+        project_id=output.project_id,
+        metric=DELIVERED_STORAGE_BYTES,
+        amount=output.file_size_bytes,
+    )
     source_path = resolve_private_file_locator(output.private_locator)
     if delivery_target == "drive":
         result = deliver_to_drive(db, output=output, source_path=source_path)
@@ -119,15 +135,32 @@ def record_output_delivery(
     if status == "delivered" and not delivered_locator:
         raise ValueError("delivered outputs require a private delivered locator")
 
+    delivery_json = output.delivery_json or {}
+    usage = delivery_json.get("usage") or {}
+    storage_accounted = bool(usage.get("delivered_storage_accounted"))
+    if status == "delivered" and not storage_accounted:
+        record_project_usage(
+            db,
+            project_id=output.project_id,
+            metric=DELIVERED_STORAGE_BYTES,
+            amount=output.file_size_bytes,
+        )
+        usage = {
+            **usage,
+            "delivered_storage_accounted": True,
+            "delivered_storage_bytes": output.file_size_bytes,
+        }
+
     output.delivery_target = target
     output.delivery_status = status
     if delivered_locator is not None:
         output.delivered_locator = validate_private_locator(delivered_locator)
     output.delivery_json = {
-        **(output.delivery_json or {}),
+        **delivery_json,
         "target": target,
         "status": status,
         "details": details,
+        "usage": usage,
     }
     return output
 

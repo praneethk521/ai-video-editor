@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     quota_enforcement_enabled: bool = True
     analysis_requests_per_project_per_day: int = 50
     render_jobs_per_project_per_day: int = 40
+    delivered_storage_bytes_per_project_per_day: int = 10_737_418_240
+    delivery_attempts_per_project_per_day: int = 40
+    provider_cost_cents_per_project_per_day: int = 2_500
+    analysis_provider_estimated_cost_cents_per_request: int = 0
     google_client_id: str = ""
     google_client_secret: str = Field(default="", repr=False)
     google_oauth_redirect_uri: str = "http://localhost:8000/projects/{project_id}/connect-drive/callback"

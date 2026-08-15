@@ -17,6 +17,7 @@ from app.services.audit import audit
 from app.services.analysis_providers import get_analysis_provider, get_analysis_provider_metrics
 from app.services.malware import record_malware_scan_result, scan_media_asset
 from app.services.output_delivery import deliver_output_video, record_output_delivery, record_output_delivery_failure
+from app.services.quotas import DELIVERY_ATTEMPTS, record_project_usage
 from app.services.rendering import complete_render_job, fail_render_job, mark_render_job_running
 
 router = APIRouter(prefix="/internal", tags=["internal"])
@@ -204,7 +205,14 @@ def output_video_delivery(
     db: Session = Depends(get_db),
     token: CurrentServiceToken = Depends(get_current_service_token),
 ):
-    get_output_video_for_service(db, output_video_id=output_video_id, token=token)
+    existing_output = get_output_video_for_service(db, output_video_id=output_video_id, token=token)
+    duplicate_terminal_update = (
+        payload.status == existing_output.delivery_status
+        and payload.delivered_locator == existing_output.delivered_locator
+        and payload.status in {"delivered", "failed"}
+    )
+    if payload.status in {"delivered", "failed"} and not duplicate_terminal_update:
+        record_project_usage(db, project_id=existing_output.project_id, metric=DELIVERY_ATTEMPTS)
     try:
         output = record_output_delivery(
             db,

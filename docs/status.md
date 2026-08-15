@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-07-20
+Last updated: 2026-08-15
 
 ## Completed
 
@@ -71,14 +71,17 @@ Last updated: 2026-07-20
 - Added project authorization outcome audit events and dashboard role-aware controls.
 - Added configurable project workflow rate limits for sync, analysis, regeneration, rendering, and retention cleanup.
 - Added durable daily project quota counters for analysis requests and render jobs.
+- Added durable delivered-storage, delivery-attempt, and estimated provider-cost accounting with configurable project caps.
+- Added operator-only project usage summaries with current retained private-output storage totals.
+- Added a role-aware dashboard usage panel with daily limit progress and automatic workflow refreshes.
 
 ## Verification
 
-- API tests: passed locally (`30 passed`).
+- API tests: passed locally (`31 passed`).
 - Worker tests: passed locally (`4 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Add storage, delivery, and provider-cost usage accounting with operator-visible summaries.
+- Move rate limiting to a shared Redis backend and make quota counter updates atomic for multi-replica deployments.

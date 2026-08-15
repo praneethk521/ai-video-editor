@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.core.config import settings
 from app.models.entities import ProjectUsageCounter
-from app.services.quotas import ANALYSIS_REQUESTS
+from app.services.quotas import ANALYSIS_REQUESTS, PROVIDER_COST_CENTS
 from app.services.rate_limits import reset_rate_limits
 
 
@@ -39,3 +39,21 @@ def test_project_analysis_quota_returns_429(client, auth_headers, db_session, mo
     assert second.status_code == 429
     assert second.json()["detail"]["metric"] == ANALYSIS_REQUESTS
     assert counter.used == 1
+
+
+def test_project_usage_summary_tracks_estimated_provider_cost(client, auth_headers, monkeypatch):
+    reset_rate_limits()
+    monkeypatch.setattr(settings, "analysis_provider_estimated_cost_cents_per_request", 25)
+    monkeypatch.setattr(settings, "provider_cost_cents_per_project_per_day", 50)
+    project = client.post("/projects", json={"name": "Cost tracked project"}, headers=auth_headers).json()
+
+    analyzed = client.post(f"/projects/{project['id']}/analyze", headers=auth_headers)
+    usage = client.get(f"/projects/{project['id']}/usage", headers=auth_headers)
+
+    assert analyzed.status_code == 422
+    assert usage.status_code == 200
+    metrics = {row["metric"]: row for row in usage.json()["metrics"]}
+    assert metrics[ANALYSIS_REQUESTS]["used"] == 1
+    assert metrics[PROVIDER_COST_CENTS]["used"] == 25
+    assert metrics[PROVIDER_COST_CENTS]["remaining"] == 25
+    assert usage.json()["active_delivered_storage_bytes"] == 0

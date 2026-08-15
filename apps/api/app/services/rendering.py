@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from fastapi import HTTPException
 from redis import Redis
 from rq import Queue
 from sqlalchemy.orm import Session
@@ -149,12 +150,13 @@ def complete_render_job(db: Session, *, render_job_id: str, result) -> OutputVid
 
         try:
             output = deliver_output_video(db, output_video_id=output.id, target=delivery_target)
-        except ValueError as exc:
+        except (ValueError, HTTPException) as exc:
+            error_message = str(exc.detail) if isinstance(exc, HTTPException) else str(exc)
             output = record_output_delivery_failure(
                 db,
                 output_video_id=output.id,
                 target=delivery_target,
-                error_message=str(exc),
+                error_message=error_message,
                 phase="auto_delivery",
             ) or output
 

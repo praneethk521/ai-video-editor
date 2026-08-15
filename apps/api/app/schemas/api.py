@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
@@ -94,6 +96,24 @@ class ProjectStatusResponse(BaseModel):
     status: str
     media_count: int
     render_jobs: list[dict]
+
+
+class ProjectUsageMetric(BaseModel):
+    metric: str
+    label: str
+    unit: str
+    used: int
+    limit: int
+    remaining: int
+
+
+class ProjectUsageResponse(BaseModel):
+    project_id: str
+    window_start: datetime
+    window_end: datetime
+    metrics: list[ProjectUsageMetric]
+    active_delivered_storage_bytes: int
+    active_delivered_output_count: int
 
 
 class OutputResponse(BaseModel):
