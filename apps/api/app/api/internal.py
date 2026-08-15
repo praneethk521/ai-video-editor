@@ -16,6 +16,7 @@ from app.schemas.api import (
 from app.services.audit import audit
 from app.services.analysis_providers import get_analysis_provider, get_analysis_provider_metrics
 from app.services.malware import record_malware_scan_result, scan_media_asset
+from app.services.metrics import record_workflow_event
 from app.services.output_delivery import deliver_output_video, record_output_delivery, record_output_delivery_failure
 from app.services.quotas import DELIVERY_ATTEMPTS, record_project_usage
 from app.services.rendering import complete_render_job, fail_render_job, mark_render_job_running
@@ -84,6 +85,7 @@ def render_job_running(
         metadata={"render_job_id": render_job_id, "variant": job.variant},
     )
     db.commit()
+    record_workflow_event("render", "running")
     return None
 
 
@@ -105,6 +107,7 @@ def media_asset_malware_scan(
             details=payload.details,
         )
     except ValueError as exc:
+        record_workflow_event("malware_scan", "failed")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     audit(
         db,
@@ -115,6 +118,7 @@ def media_asset_malware_scan(
         metadata={"media_asset_id": media_asset_id, "scanner": payload.scanner, "status": payload.status},
     )
     db.commit()
+    record_workflow_event("malware_scan", payload.status)
     return None
 
 
@@ -129,6 +133,7 @@ def scan_media_asset_for_malware(
     try:
         asset = scan_media_asset(db, media_asset_id=media_asset_id)
     except ValueError as exc:
+        record_workflow_event("malware_scan", "failed")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     audit(
         db,
@@ -139,6 +144,7 @@ def scan_media_asset_for_malware(
         metadata={"media_asset_id": media_asset_id, "status": asset.malware_scan_status},
     )
     db.commit()
+    record_workflow_event("malware_scan", asset.malware_scan_status)
     return None
 
 
@@ -169,6 +175,7 @@ def render_job_complete(
         },
     )
     db.commit()
+    record_workflow_event("render", "succeeded")
     return None
 
 
@@ -194,6 +201,7 @@ def render_job_fail(
         metadata={"render_job_id": render_job_id, "variant": job.variant},
     )
     db.commit()
+    record_workflow_event("render", "failed")
     return None
 
 
@@ -233,6 +241,8 @@ def output_video_delivery(
         metadata={"output_video_id": output.id, "target": output.delivery_target, "status": output.delivery_status},
     )
     db.commit()
+    if payload.status in {"delivered", "failed"}:
+        record_workflow_event("delivery", payload.status)
     return None
 
 
@@ -265,6 +275,7 @@ def output_video_deliver(
                 metadata={"output_video_id": output.id, "target": output.delivery_target},
             )
             db.commit()
+        record_workflow_event("delivery", "failed")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     audit(
         db,
@@ -275,6 +286,7 @@ def output_video_deliver(
         metadata={"output_video_id": output.id, "target": output.delivery_target, "status": output.delivery_status},
     )
     db.commit()
+    record_workflow_event("delivery", "succeeded")
     return None
 
 

@@ -11,10 +11,17 @@ spec:
     metadata:
       labels:
         app: ai-video-worker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "9100"
     spec:
       containers:
         - name: worker
           image: ghcr.io/OWNER/ai-video-editor-worker:latest
+          ports:
+            - name: metrics
+              containerPort: 9100
           envFrom:
             - secretRef:
                 name: ai-video-worker-secrets
@@ -23,6 +30,10 @@ spec:
               value: /tmp/ai-video-editor
             - name: OUTPUT_DELIVERY_LOCAL_ROOT
               value: /tmp/ai-video-editor/outputs
+            - name: WORKER_METRICS_PORT
+              value: "9100"
+            - name: PROMETHEUS_MULTIPROC_DIR
+              value: /tmp/ai-video-editor/prometheus
           volumeMounts:
             - name: temp-media
               mountPath: /tmp

@@ -11,6 +11,7 @@ from redis import Redis
 from redis.exceptions import RedisError
 
 from app.core.config import settings
+from app.services.metrics import record_rate_limit_decision
 
 
 @dataclass
@@ -46,10 +47,17 @@ def enforce_project_rate_limit(
         return
 
     key = f"project:{project_id}:action:{action}:caller:{caller_hash(request)}"
-    if settings.rate_limit_backend == "redis":
-        enforce_redis_window(key=key, limit=action_limit, window_seconds=window_seconds)
-        return
-    enforce_memory_window(key=key, limit=action_limit, window_seconds=window_seconds)
+    backend = settings.rate_limit_backend
+    try:
+        if backend == "redis":
+            enforce_redis_window(key=key, limit=action_limit, window_seconds=window_seconds)
+        else:
+            enforce_memory_window(key=key, limit=action_limit, window_seconds=window_seconds)
+    except HTTPException as exc:
+        outcome = "limited" if exc.status_code == status.HTTP_429_TOO_MANY_REQUESTS else "backend_error"
+        record_rate_limit_decision(backend=backend, action=action, outcome=outcome)
+        raise
+    record_rate_limit_decision(backend=backend, action=action, outcome="allowed")
 
 
 def enforce_memory_window(*, key: str, limit: int, window_seconds: int) -> None:

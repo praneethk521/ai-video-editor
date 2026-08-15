@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from prometheus_client import generate_latest
+
+from app import jobs as worker_jobs
 from app.jobs import render_timeline
 from app.render import VideoRenderer
 from app.validation import parse_blackdetect_output, summarize_ffprobe
@@ -73,6 +76,36 @@ def test_render_timeline_returns_private_output_metadata():
     assert result["upload_package"]["manual_upload_only"] is True
     assert result["upload_package"]["delivery_status"] == "private_staging"
     assert result["validation"]["status"] == "skipped"
+
+
+def test_render_job_records_worker_metrics(monkeypatch):
+    callback_events = []
+
+    class FakeCallback:
+        def mark_running(self, render_job_id: str) -> None:
+            callback_events.append(("running", render_job_id))
+
+        def complete(self, render_job_id: str, payload: dict) -> None:
+            callback_events.append(("complete", render_job_id))
+
+        def fail(self, render_job_id: str, error_message: str) -> None:
+            callback_events.append(("fail", render_job_id))
+
+    monkeypatch.setattr(worker_jobs, "RenderCallbackClient", lambda base_url, api_token: FakeCallback())
+    monkeypatch.setattr(
+        worker_jobs,
+        "render_timeline",
+        lambda plan, dry_run: {"variant": plan["variant"], "validation": {"status": "passed"}},
+    )
+
+    result = worker_jobs.render_timeline_job("render-1", {"variant": "youtube_16x9"}, dry_run=True)
+    metrics = generate_latest().decode("utf-8")
+
+    assert result["variant"] == "youtube_16x9"
+    assert callback_events == [("running", "render-1"), ("complete", "render-1")]
+    assert "ai_video_editor_worker_render_jobs_total" in metrics
+    assert 'variant="youtube_16x9"' in metrics
+    assert 'outcome="succeeded"' in metrics
 
 
 def test_summarizes_ffprobe_output():

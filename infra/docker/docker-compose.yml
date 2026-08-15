@@ -63,9 +63,13 @@ services:
       API_BASE_URL: http://api:8000
       VIDEO_TEMP_ROOT: /tmp/ai-video-editor
       OUTPUT_STORAGE_PROVIDER: ${OUTPUT_STORAGE_PROVIDER:-drive}
+      WORKER_METRICS_PORT: 9100
+      PROMETHEUS_MULTIPROC_DIR: /tmp/ai-video-editor/prometheus
     depends_on:
       - redis
     read_only: true
+    ports:
+      - "9100:9100"
     tmpfs:
       - /tmp:size=4g,mode=1777
     volumes:

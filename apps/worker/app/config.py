@@ -17,6 +17,7 @@ class WorkerSettings:
     require_embedded_subtitles: bool = os.getenv("REQUIRE_EMBEDDED_SUBTITLES", "false").lower() in {"1", "true", "yes"}
     fail_on_black_frames: bool = os.getenv("FAIL_ON_BLACK_FRAMES", "false").lower() in {"1", "true", "yes"}
     render_dry_run: bool = os.getenv("RENDER_DRY_RUN", "true").lower() in {"1", "true", "yes"}
+    metrics_port: int = int(os.getenv("WORKER_METRICS_PORT", "9100"))
 
 
 settings = WorkerSettings()

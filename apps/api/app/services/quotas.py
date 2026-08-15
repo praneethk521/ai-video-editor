@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.entities import OutputVideo, ProjectUsageCounter, new_id, utcnow
+from app.services.metrics import record_quota_decision
 
 ANALYSIS_REQUESTS = "analysis_requests"
 RENDER_JOBS = "render_jobs"
@@ -35,15 +36,21 @@ def consume_project_quota(
     limit: int | None = None,
     window_seconds: int = DAY_SECONDS,
 ) -> ProjectUsageCounter | None:
-    return record_project_usage(
-        db,
-        project_id=project_id,
-        metric=metric,
-        amount=amount,
-        limit=limit,
-        window_seconds=window_seconds,
-        enforce_limit=settings.quota_enforcement_enabled,
-    )
+    try:
+        counter = record_project_usage(
+            db,
+            project_id=project_id,
+            metric=metric,
+            amount=amount,
+            limit=limit,
+            window_seconds=window_seconds,
+            enforce_limit=settings.quota_enforcement_enabled,
+        )
+    except HTTPException:
+        record_quota_decision(metric=metric, outcome="denied")
+        raise
+    record_quota_decision(metric=metric, outcome="allowed" if counter is not None else "unlimited")
+    return counter
 
 
 def record_project_usage(
@@ -227,15 +234,9 @@ def ensure_project_quota_available(
     )
     used = counter.used if counter is not None else 0
     if used + amount > metric_limit:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={
-                "message": "project quota exceeded",
-                "metric": metric,
-                "limit": metric_limit,
-                "used": used,
-            },
-        )
+        record_quota_decision(metric=metric, outcome="denied")
+        raise_quota_exceeded(metric=metric, metric_limit=metric_limit, used=used)
+    record_quota_decision(metric=metric, outcome="allowed")
 
 
 def project_usage_summary(db: Session, *, project_id: str) -> dict:

@@ -1,6 +1,6 @@
 # RBAC Design
 
-RBAC is a P0 production hardening requirement. The current API authenticates requests with bearer tokens and stores project ownership, but it does not yet enforce multi-role access across users or teams.
+RBAC is a P0 production hardening requirement. The API authenticates bearer tokens and enforces project roles, team and direct membership, and scoped internal service tokens.
 
 ## Goals
 
@@ -47,6 +47,7 @@ Projects should remain owned by a user or team. A user receives access through d
 | Project deletion | `owner` or `admin` |
 | Internal worker callbacks | `worker` service token scoped to job/project |
 | Analysis provider health/metrics | `operator` or `admin` |
+| Platform Prometheus metrics | global `metrics` service token or `admin`/`internal`/`orchestrator` super-scope |
 
 ## Enforcement Plan
 

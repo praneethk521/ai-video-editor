@@ -76,14 +76,17 @@ Last updated: 2026-08-15
 - Added a role-aware dashboard usage panel with daily limit progress and automatic workflow refreshes.
 - Added a shared Redis fixed-window rate-limit backend with atomic expiry, fail-closed outage handling, and deployment wiring.
 - Made PostgreSQL and SQLite project quota increments atomic under concurrent requests.
+- Added authenticated Prometheus-compatible API metrics for HTTP, workflows, quotas, rate limits, dependencies, and render queue depth.
+- Added RQ multiprocess worker metrics for render outcomes, duration, and API callbacks with private scrape deployment wiring.
+- Added observability deployment guidance and runbook triage procedures with privacy-safe label requirements.
 
 ## Verification
 
-- API tests: passed locally (`33 passed`).
-- Worker tests: passed locally (`4 passed`).
+- API tests: passed locally (`36 passed`).
+- Worker tests: passed locally (`5 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Add Prometheus-compatible API and worker metrics for ingest, analysis, render, delivery, retention, queue, quota, and rate-limit health.
+- Add Prometheus alert rules and OpenTelemetry tracing for API, provider, queue, render, and delivery latency.

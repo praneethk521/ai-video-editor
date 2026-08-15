@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     delivery_attempts_per_project_per_day: int = 40
     provider_cost_cents_per_project_per_day: int = 2_500
     analysis_provider_estimated_cost_cents_per_request: int = 0
+    metrics_enabled: bool = True
     google_client_id: str = ""
     google_client_secret: str = Field(default="", repr=False)
     google_oauth_redirect_uri: str = "http://localhost:8000/projects/{project_id}/connect-drive/callback"

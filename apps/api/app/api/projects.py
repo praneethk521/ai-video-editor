@@ -36,6 +36,7 @@ from app.services.audit import audit
 from app.services.analysis_providers import AnalysisProviderError
 from app.services.authorization import project_role_for_user, role_allows
 from app.services.media import complete_drive_oauth, create_drive_connection, create_media_asset, sync_drive_folder
+from app.services.metrics import record_workflow_event
 from app.services.output_delivery import cleanup_due_delivered_output
 from app.services.planning import (
     analyze_and_plan,
@@ -188,6 +189,7 @@ def connect_drive_callback(
     try:
         connection = complete_drive_oauth(db, project_id=project_id, state=state, code=code)
     except ValueError as exc:
+        record_workflow_event("drive_oauth", "failed")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     audit(
         db,
@@ -198,6 +200,7 @@ def connect_drive_callback(
         metadata={"scopes": connection.scopes, "provider": connection.provider},
     )
     db.commit()
+    record_workflow_event("drive_oauth", "succeeded")
     return ConnectDriveResponse(connection_id=connection.id, status=connection.status, scopes=connection.scopes)
 
 
@@ -219,6 +222,7 @@ def ingest(
             db.flush()
             accepted.append(media.id)
     except ValueError as exc:
+        record_workflow_event("ingest", "failed")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     project.status = ProjectStatus.ingesting
     audit(
@@ -230,6 +234,7 @@ def ingest(
         metadata={"asset_count": len(accepted)},
     )
     db.commit()
+    record_workflow_event("ingest", "succeeded")
     return IngestResponse(accepted_asset_ids=accepted)
 
 
@@ -247,6 +252,7 @@ def sync_drive(
     try:
         result = sync_drive_folder(db, project_id=project.id)
     except ValueError as exc:
+        record_workflow_event("drive_sync", "failed")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     project.status = ProjectStatus.ingesting
     audit(
@@ -263,6 +269,7 @@ def sync_drive(
         },
     )
     db.commit()
+    record_workflow_event("drive_sync", "succeeded")
     return DriveSyncResponse(**result)
 
 
@@ -289,11 +296,13 @@ def analyze(
     try:
         analysis, plans = analyze_and_plan(db, project_id=project.id)
     except AnalysisProviderError as exc:
+        record_workflow_event("analysis", "failed")
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"message": str(exc), "details": exc.details},
         ) from exc
     except ValueError as exc:
+        record_workflow_event("analysis", "failed")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     project.status = ProjectStatus.planned
     audit(
@@ -305,6 +314,7 @@ def analyze(
         metadata={"provider_cost_cents_estimate": estimated_provider_cost},
     )
     db.commit()
+    record_workflow_event("analysis", "succeeded")
     return AnalyzeResponse(analysis_id=analysis.id, timeline_plan_ids=[plan.id for plan in plans])
 
 
@@ -359,6 +369,7 @@ def regenerate_plans(
     try:
         plans = regenerate_timeline_plans(db, project_id=project.id, variants=payload.variants, notes=payload.notes)
     except ValueError as exc:
+        record_workflow_event("plan_regeneration", "failed")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     audit(
         db,
@@ -369,6 +380,7 @@ def regenerate_plans(
         metadata={"variants": payload.variants},
     )
     db.commit()
+    record_workflow_event("plan_regeneration", "succeeded")
     return AnalyzeResponse(analysis_id="", timeline_plan_ids=[plan.id for plan in plans])
 
 
@@ -445,6 +457,7 @@ def render(
     try:
         jobs, queue_items = create_render_jobs(db, project_id=project.id, variants=payload.variants)
     except ValueError as exc:
+        record_workflow_event("render_queue", "rejected")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     project.status = ProjectStatus.rendering
     audit(
@@ -459,8 +472,10 @@ def render(
     try:
         dispatch_render_jobs(queue_items)
     except ValueError as exc:
+        record_workflow_event("render_queue", "failed")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     except Exception as exc:
+        record_workflow_event("render_queue", "failed")
         for job in jobs:
             fail_render_job(db, render_job_id=job.id, error_message=f"failed to enqueue render job: {exc}")
         audit(
@@ -473,6 +488,7 @@ def render(
         )
         db.commit()
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="render queue unavailable") from exc
+    record_workflow_event("render_queue", "queued")
     return RenderResponse(render_job_ids=[job.id for job in jobs])
 
 
@@ -599,6 +615,7 @@ def cleanup_due_output_retention(
         },
     )
     db.commit()
+    record_workflow_event("retention_cleanup", "previewed" if payload.dry_run else "completed")
     return OutputRetentionCleanupResponse(project_id=project.id, dry_run=payload.dry_run, outputs=results)
 
 

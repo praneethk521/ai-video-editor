@@ -1,5 +1,14 @@
 # Runbook
 
+## Observability Triage
+
+1. Scrape authenticated API metrics from `GET /metrics` and private worker metrics from port `9100`.
+2. Check `ai_video_editor_dependency_up` before investigating queue or rate-limit symptoms.
+3. Compare HTTP error rates with `ai_video_editor_workflow_events_total` to isolate the failing workflow.
+4. Review `ai_video_editor_render_queue_depth` and worker render duration together before scaling workers.
+5. Treat repeated quota denials as a project capacity or configuration issue and rate-limit backend errors as a Redis availability incident.
+6. Use structured logs and the request correlation ID for event-level investigation; metrics never contain project or media identifiers.
+
 ## Incident: Suspected Secret Leak
 
 1. Revoke the leaked credential immediately.
