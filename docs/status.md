@@ -104,4 +104,4 @@ Last updated: 2026-08-15
 
 ## Next
 
-- Add encrypted PostgreSQL backup and restore automation with a scheduled Kubernetes job, retention controls, and a documented restore drill.
+- Complete production RBAC by replacing the legacy single-user bearer bridge with validated OIDC identities, owner-managed project/team memberships, and endpoint-policy matrix tests.

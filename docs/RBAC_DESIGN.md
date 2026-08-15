@@ -61,6 +61,8 @@ Projects should remain owned by a user or team. A user receives access through d
 
 The draft schema lives in `apps/api/migrations/002_rbac.sql` and matching SQLAlchemy models. User-facing project authorization is enforced through `apps/api/app/services/authorization.py`. Internal callbacks now use scoped service-token checks in `apps/api/app/core/security.py` and `apps/api/app/api/internal.py`; the legacy API token bridge remains for local smoke workflows while deployments move to stored service tokens. Project authorization decisions emit `authorization.project` audit rows, and the dashboard includes role-aware control gating for viewer, reviewer, operator, owner, and admin checks.
 
+The remaining production slice is to validate user identities through the deployment OIDC provider, add owner-only project and team membership administration endpoints, remove the legacy single-user bridge outside local mode, and complete allow/deny matrix coverage for every endpoint group.
+
 ## Audit Requirements
 
 Audit logs should record:
