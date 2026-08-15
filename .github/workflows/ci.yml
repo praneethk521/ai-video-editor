@@ -78,3 +78,9 @@ jobs:
       - name: Validate Kubernetes YAML
         run: |
           ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_stream(File.read(f)); puts "ok #{f}" }' infra/k8s/*.yaml
+      - name: Validate Prometheus alert rules
+        run: |
+          docker run --rm --entrypoint promtool \
+            -v "$PWD/infra/observability:/etc/ai-video-observability:ro" \
+            prom/prometheus:v3.13.1 \
+            check rules /etc/ai-video-observability/prometheus-alerts.yaml

@@ -14,6 +14,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.tracing import operation_span
 from app.models.entities import OutputVideo
 from app.services.media import decrypt_token_payload, latest_connected_drive_connection
 from app.services.quotas import (
@@ -63,6 +64,11 @@ def deliver_output_video(db: Session, *, output_video_id: str, target: str | Non
     if output.delivery_status == "delivered" and output.delivered_locator:
         return output
 
+    with operation_span("output.delivery", attributes={"delivery.target": delivery_target}):
+        return _deliver_output_video(db, output=output, delivery_target=delivery_target)
+
+
+def _deliver_output_video(db: Session, *, output: OutputVideo, delivery_target: str) -> OutputVideo:
     consume_project_quota(db, project_id=output.project_id, metric=DELIVERY_ATTEMPTS)
     ensure_project_quota_available(
         db,
@@ -80,7 +86,7 @@ def deliver_output_video(db: Session, *, output_video_id: str, target: str | Non
 
     delivered_output = record_output_delivery(
         db,
-        output_video_id=output_video_id,
+        output_video_id=output.id,
         target=result.target,
         status=result.status,
         delivered_locator=result.delivered_locator,

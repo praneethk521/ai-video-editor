@@ -79,14 +79,18 @@ Last updated: 2026-08-15
 - Added authenticated Prometheus-compatible API metrics for HTTP, workflows, quotas, rate limits, dependencies, and render queue depth.
 - Added RQ multiprocess worker metrics for render outcomes, duration, and API callbacks with private scrape deployment wiring.
 - Added observability deployment guidance and runbook triage procedures with privacy-safe label requirements.
+- Added opt-in OpenTelemetry tracing for normalized API requests, analysis providers, RQ enqueue and worker render spans, callbacks, and private output delivery.
+- Added W3C trace-context propagation through RQ using route-template and bounded workflow spans that omit URLs, queries, headers, identifiers, exception messages, and private locators.
+- Added nine Prometheus alert rules for API reliability, dependencies, queue backlog, rendering, delivery, quota pressure, and rate-limit backend failures.
+- Added CI validation for Prometheus rules plus tracing configuration for Docker Compose and Kubernetes workloads.
 
 ## Verification
 
-- API tests: passed locally (`36 passed`).
-- Worker tests: passed locally (`5 passed`).
+- API tests: passed locally (`40 passed`).
+- Worker tests: passed locally (`6 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
 
 ## Next
 
-- Add Prometheus alert rules and OpenTelemetry tracing for API, provider, queue, render, and delivery latency.
+- Add an OpenTelemetry Collector and Prometheus/Grafana deployment reference with dashboards, private scrape configuration, and secret wiring.

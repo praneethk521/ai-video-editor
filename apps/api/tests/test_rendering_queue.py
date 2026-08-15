@@ -17,8 +17,8 @@ def test_dispatch_render_jobs_submits_rq_job(monkeypatch):
             assert name == "renders"
             assert connection == "redis-connection"
 
-        def enqueue(self, function_name, *args, **kwargs):
-            enqueued.append({"function_name": function_name, "args": args, "kwargs": kwargs})
+        def enqueue_call(self, **kwargs):
+            enqueued.append(kwargs)
 
     monkeypatch.setattr(rendering.settings, "render_queue_backend", "rq")
     monkeypatch.setattr(rendering, "Redis", FakeRedis)
@@ -28,8 +28,11 @@ def test_dispatch_render_jobs_submits_rq_job(monkeypatch):
 
     assert enqueued == [
         {
-            "function_name": "app.jobs.render_timeline_job",
+            "func": "app.jobs.render_timeline_job",
             "args": ("job-1", {"variant": "youtube_16x9"}),
-            "kwargs": {"job_timeout": 1800, "result_ttl": 86400, "failure_ttl": 86400},
+            "kwargs": {"trace_context": {}},
+            "timeout": 1800,
+            "result_ttl": 86400,
+            "failure_ttl": 86400,
         }
     ]

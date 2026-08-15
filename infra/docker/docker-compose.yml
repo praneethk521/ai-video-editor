@@ -39,6 +39,7 @@ services:
       - ../../.env
     environment:
       RATE_LIMIT_BACKEND: redis
+      OTEL_SERVICE_NAME: ai-video-editor-api
       OUTPUT_DELIVERY_LOCAL_ROOT: /tmp/ai-video-editor/outputs
       LOCAL_PRIVATE_DELIVERY_ROOT: /tmp/ai-video-editor/delivered
     depends_on:
@@ -63,6 +64,7 @@ services:
       API_BASE_URL: http://api:8000
       VIDEO_TEMP_ROOT: /tmp/ai-video-editor
       OUTPUT_STORAGE_PROVIDER: ${OUTPUT_STORAGE_PROVIDER:-drive}
+      OTEL_SERVICE_NAME: ai-video-editor-worker
       WORKER_METRICS_PORT: 9100
       PROMETHEUS_MULTIPROC_DIR: /tmp/ai-video-editor/prometheus
     depends_on:

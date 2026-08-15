@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     provider_cost_cents_per_project_per_day: int = 2_500
     analysis_provider_estimated_cost_cents_per_request: int = 0
     metrics_enabled: bool = True
+    tracing_enabled: bool = False
+    otel_service_name: str = "ai-video-editor-api"
+    otel_exporter_otlp_endpoint: str = "http://otel-collector:4318/v1/traces"
+    otel_exporter_otlp_headers: str = Field(default="", repr=False)
+    otel_trace_sample_ratio: float = Field(default=0.1, ge=0, le=1)
     google_client_id: str = ""
     google_client_secret: str = Field(default="", repr=False)
     google_oauth_redirect_uri: str = "http://localhost:8000/projects/{project_id}/connect-drive/callback"

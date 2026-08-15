@@ -52,5 +52,6 @@ Status: In progress
 - Rate limits and quotas.
 - Cost controls per project.
 - Full Kubernetes/ECS deployment.
+- Prometheus metrics and alerts plus privacy-safe OpenTelemetry traces.
 - Branch protection and required PR reviews.
 - Production gap tracking with exit criteria.

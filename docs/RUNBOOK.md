@@ -8,6 +8,9 @@
 4. Review `ai_video_editor_render_queue_depth` and worker render duration together before scaling workers.
 5. Treat repeated quota denials as a project capacity or configuration issue and rate-limit backend errors as a Redis availability incident.
 6. Use structured logs and the request correlation ID for event-level investigation; metrics never contain project or media identifiers.
+7. Use a distributed trace to compare API handling, provider analysis, RQ queue delay, worker rendering, callbacks, and private delivery latency.
+8. Confirm trace exports contain only normalized paths and bounded operational attributes before enabling tracing in a new environment.
+9. Validate changes to `infra/observability/prometheus-alerts.yaml` with `promtool check rules` before deployment.
 
 ## Incident: Suspected Secret Leak
 

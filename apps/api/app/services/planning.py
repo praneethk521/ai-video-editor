@@ -5,8 +5,9 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from app.core.tracing import operation_span
 from app.models.entities import AnalysisResult, MediaAsset, PlanStatus, Project, ProjectStatus, TimelinePlan, utcnow
-from app.services.analysis_providers import get_analysis_provider
+from app.services.analysis_providers import ProjectAnalysis, get_analysis_provider
 from app.services.malware import require_clean_media_assets
 
 def add_shared_path() -> None:
@@ -31,7 +32,7 @@ def analyze_and_plan(db: Session, *, project_id: str) -> tuple[AnalysisResult, l
         raise ValueError("project has no media assets")
     require_clean_media_assets(assets)
 
-    analysis = get_analysis_provider().analyze(assets)
+    analysis = analyze_with_tracing(assets)
     result = AnalysisResult(
         project_id=project_id,
         provider=analysis.provider,
@@ -88,7 +89,7 @@ def regenerate_timeline_plans(db: Session, *, project_id: str, variants: list[st
 
     analysis_result = latest_analysis_result(db, project_id=project_id)
     if analysis_result is None:
-        analysis = get_analysis_provider().analyze(assets)
+        analysis = analyze_with_tracing(assets)
         analysis_result = AnalysisResult(project_id=project_id, provider=analysis.provider, result_json=analysis.result)
         db.add(analysis_result)
 
@@ -147,6 +148,12 @@ def list_analysis_results(db: Session, *, project_id: str) -> list[AnalysisResul
         .order_by(AnalysisResult.created_at.desc())
         .all()
     )
+
+
+def analyze_with_tracing(assets: list[MediaAsset]) -> ProjectAnalysis:
+    provider = get_analysis_provider()
+    with operation_span("analysis.provider", attributes={"analysis.provider": provider.provider_name}):
+        return provider.analyze(assets)
 
 
 def asset_summaries_from_analysis(analysis_json: dict) -> list[AssetSummary]:

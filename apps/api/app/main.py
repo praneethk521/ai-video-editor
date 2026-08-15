@@ -13,6 +13,7 @@ from app.api.projects import router as projects_router
 from app.core.config import settings
 from app.core.logging import configure_logging
 from app.core.security import CurrentServiceToken, get_current_service_token, require_service_scope
+from app.core.tracing import configure_api_tracing, normalized_route
 from app.db.session import Base, engine
 from app.models import entities  # noqa: F401
 from app.services.metrics import record_http_request, render_metrics
@@ -46,7 +47,7 @@ def create_app() -> FastAPI:
             response = await call_next(request)
         except Exception:
             elapsed_seconds = time.perf_counter() - start
-            route = getattr(request.scope.get("route"), "path", "unmatched")
+            route = normalized_route(request.scope)
             record_http_request(
                 method=request.method,
                 route=route,
@@ -56,7 +57,7 @@ def create_app() -> FastAPI:
             raise
         elapsed_seconds = time.perf_counter() - start
         elapsed_ms = round(elapsed_seconds * 1000, 2)
-        route = getattr(request.scope.get("route"), "path", "unmatched")
+        route = normalized_route(request.scope)
         record_http_request(
             method=request.method,
             route=route,
@@ -67,7 +68,7 @@ def create_app() -> FastAPI:
         logger.info(
             "http_request",
             method=request.method,
-            path=request.url.path,
+            path=route,
             status_code=response.status_code,
             elapsed_ms=elapsed_ms,
             correlation_id=correlation_id,
@@ -90,6 +91,7 @@ def create_app() -> FastAPI:
 
     app.include_router(projects_router)
     app.include_router(internal_router)
+    configure_api_tracing(app)
     return app
 
 

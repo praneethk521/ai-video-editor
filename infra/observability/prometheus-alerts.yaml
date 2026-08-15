@@ -1,0 +1,110 @@
+groups:
+  - name: ai-video-editor-api
+    interval: 30s
+    rules:
+      - alert: AiVideoApiHighErrorRate
+        expr: |
+          sum(rate(ai_video_editor_api_http_requests_total{status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(ai_video_editor_api_http_requests_total[5m])), 0.001)
+          > 0.05
+        for: 10m
+        labels:
+          severity: critical
+          service: ai-video-api
+        annotations:
+          summary: API error rate is above 5 percent
+          description: More than 5 percent of API requests returned 5xx responses for 10 minutes.
+
+      - alert: AiVideoApiP95LatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(ai_video_editor_api_http_request_duration_seconds_bucket[10m]))
+          ) > 2
+        for: 15m
+        labels:
+          severity: warning
+          service: ai-video-api
+        annotations:
+          summary: API p95 latency is above 2 seconds
+          description: Platform-wide API p95 latency exceeded 2 seconds for 15 minutes.
+
+      - alert: AiVideoDependencyUnavailable
+        expr: min by (dependency) (ai_video_editor_dependency_up) == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: ai-video-api
+        annotations:
+          summary: Required API dependency is unavailable
+          description: The {{ $labels.dependency }} dependency has reported unavailable for 5 minutes.
+
+      - alert: AiVideoRenderQueueBacklog
+        expr: max(ai_video_editor_render_queue_depth) > 25
+        for: 15m
+        labels:
+          severity: warning
+          service: ai-video-worker
+        annotations:
+          summary: Render queue backlog is sustained
+          description: More than 25 render jobs have remained queued for 15 minutes.
+
+      - alert: AiVideoRateLimitBackendErrors
+        expr: |
+          sum(increase(ai_video_editor_rate_limit_decisions_total{outcome="backend_error"}[5m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+          service: ai-video-api
+        annotations:
+          summary: Shared rate-limit backend is failing
+          description: The API has failed closed because its rate-limit backend returned errors.
+
+  - name: ai-video-editor-workflows
+    interval: 30s
+    rules:
+      - alert: AiVideoWorkerRenderFailures
+        expr: |
+          sum(increase(ai_video_editor_worker_render_jobs_total{outcome="failed"}[15m])) > 0
+        labels:
+          severity: critical
+          service: ai-video-worker
+        annotations:
+          summary: A render job failed
+          description: At least one worker render failed in the last 15 minutes.
+
+      - alert: AiVideoWorkerRenderP95LatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(ai_video_editor_worker_render_duration_seconds_bucket[30m]))
+          ) > 900
+        for: 15m
+        labels:
+          severity: warning
+          service: ai-video-worker
+        annotations:
+          summary: Worker render p95 latency is above 15 minutes
+          description: Platform-wide worker render p95 latency exceeded 15 minutes for 15 minutes.
+
+      - alert: AiVideoDeliveryFailures
+        expr: |
+          sum(increase(ai_video_editor_workflow_events_total{workflow="delivery",outcome="failed"}[15m])) > 0
+        labels:
+          severity: critical
+          service: ai-video-api
+        annotations:
+          summary: A private output delivery failed
+          description: At least one private output delivery failed in the last 15 minutes.
+
+      - alert: AiVideoQuotaDenialsBurst
+        expr: |
+          sum(increase(ai_video_editor_quota_decisions_total{outcome="denied"}[15m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: ai-video-api
+        annotations:
+          summary: Project quota denials are elevated
+          description: More than 10 project workflow requests were denied by quotas in 15 minutes.

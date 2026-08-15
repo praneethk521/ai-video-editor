@@ -49,6 +49,35 @@ scrape_configs:
       - targets: [ai-video-worker:9100]
 ```
 
-## Initial Operational Signals
+Load the versioned rules from `infra/observability/prometheus-alerts.yaml` through the Prometheus `rule_files` setting. The rules cover sustained API errors and latency, dependency outages, render backlog and failures, render latency, delivery failures, quota pressure, and rate-limit backend errors.
 
-Monitor sustained HTTP `5xx` rates, p95 request and render latency, render queue growth, dependency availability, failed analysis or delivery events, denied quotas, rate-limit backend errors, and failed worker callbacks. Alert rules and distributed tracing remain the next observability slice.
+Validate rule changes before deployment:
+
+```bash
+docker run --rm --entrypoint promtool \
+  -v "$PWD/infra/observability:/etc/ai-video-observability:ro" \
+  prom/prometheus:v3.13.1 \
+  check rules /etc/ai-video-observability/prometheus-alerts.yaml
+```
+
+## Distributed Tracing
+
+Tracing is opt-in and disabled by default. The API and worker export OTLP/HTTP spans to an OpenTelemetry Collector when `TRACING_ENABLED=true`.
+
+| Setting | Purpose |
+| --- | --- |
+| `TRACING_ENABLED` | Enables API and worker tracing. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector trace endpoint, default `http://otel-collector:4318/v1/traces`. |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Comma-separated, URL-encoded exporter headers. Store this value in a secret. |
+| `OTEL_TRACE_SAMPLE_RATIO` | Parent-based root trace sampling ratio from `0` to `1`, default `0.1`. |
+| `OTEL_SERVICE_NAME` | Distinguishes `ai-video-editor-api` from `ai-video-editor-worker`. |
+
+API traces include route-template inbound requests plus explicit analysis-provider, render-enqueue, and output-delivery spans. W3C trace context is injected into RQ job kwargs so the worker render and bounded callback spans remain in the same distributed trace. The implementation does not use generic HTTP client instrumentation, so provider URLs and callback paths are not attached to spans.
+
+Trace attributes and exception events must never include request or response bodies, captured headers, filenames, project or asset IDs, private locators, Drive folder/file IDs, S3 keys, OAuth data, raw URL paths, query strings, or exception messages. API spans use matched route templates, workflow attributes use bounded values, and failures export only the exception class.
+
+Route OTLP traffic through an OpenTelemetry Collector in production rather than exposing a trace backend directly to application containers. Keep exporter authentication headers in the API and worker secret stores.
+
+## Operational Signals
+
+Monitor sustained HTTP `5xx` rates, p95 request and render latency, render queue growth, dependency availability, failed analysis or delivery events, denied quotas, rate-limit backend errors, and failed worker callbacks. Tune the versioned alert thresholds after collecting representative production traffic.

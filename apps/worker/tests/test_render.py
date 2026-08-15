@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from prometheus_client import generate_latest
 
 from app import jobs as worker_jobs
+from app.config import WorkerSettings
 from app.jobs import render_timeline
 from app.render import VideoRenderer
+from app.tracing import normalized_variant, parse_exporter_headers
 from app.validation import parse_blackdetect_output, summarize_ffprobe
 
 
@@ -147,3 +150,12 @@ def test_parses_blackdetect_output():
         ],
         "total_duration_seconds": 1.7,
     }
+
+
+def test_worker_trace_configuration_uses_bounded_attributes():
+    assert parse_exporter_headers("authorization=Bearer%20secret") == {
+        "authorization": "Bearer secret"
+    }
+    assert normalized_variant("untrusted-value") == "unknown"
+    with pytest.raises(ValueError, match="OTEL_TRACE_SAMPLE_RATIO"):
+        WorkerSettings(otel_trace_sample_ratio=1.1)

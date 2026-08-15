@@ -11,7 +11,7 @@ This tracker captures remaining M4 hardening work before treating the platform a
 | Provider-native retention deletion | P1 | Planned | Drive and S3 due cleanup can be executed or reconciled safely with audit evidence. |
 | Production renderer hardening | P1 | In progress | Renderer has real workload tests, resource limits, timeout handling, and reproducible output packages. |
 | Full deployment reference | P1 | Planned | Kubernetes/ECS reference includes secrets, storage classes, health checks, autoscaling, and rollback notes. |
-| Observability | P1 | In progress | Prometheus metrics and structured logs cover core workflows; alert rules and distributed traces remain. |
+| Observability | P1 | In progress | Prometheus metrics, alert rules, structured logs, and privacy-safe distributed tracing cover core workflows; collector and dashboard deployment remain. |
 | Backup and restore | P1 | Planned | Database and private metadata backups have tested restore procedures. |
 | Data retention automation | P1 | In progress | Staged and local-private delivered output cleanup is automated; provider-backed cleanup is reconciled. |
 | Security review | P1 | Planned | Threat model, dependency review, OAuth scope review, and secret-handling review are complete. |

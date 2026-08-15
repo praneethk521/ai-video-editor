@@ -28,6 +28,8 @@ spec:
           env:
             - name: VIDEO_TEMP_ROOT
               value: /tmp/ai-video-editor
+            - name: OTEL_SERVICE_NAME
+              value: ai-video-editor-worker
             - name: OUTPUT_DELIVERY_LOCAL_ROOT
               value: /tmp/ai-video-editor/outputs
             - name: WORKER_METRICS_PORT

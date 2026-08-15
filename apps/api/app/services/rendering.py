@@ -3,11 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fastapi import HTTPException
+from opentelemetry.propagate import inject
 from redis import Redis
 from rq import Queue
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.tracing import operation_span
 from app.models.entities import OutputVideo, PlanStatus, Project, ProjectStatus, RenderJob, RenderStatus, TimelinePlan
 
 from pathlib import Path
@@ -79,14 +81,23 @@ def dispatch_render_jobs(queue_items: list[RenderQueueItem]) -> None:
 
     queue = Queue("renders", connection=Redis.from_url(settings.redis_url))
     for item in queue_items:
-        queue.enqueue(
-            "app.jobs.render_timeline_job",
-            item.render_job_id,
-            item.plan_json,
-            job_timeout=settings.render_job_timeout_seconds,
-            result_ttl=86400,
-            failure_ttl=86400,
-        )
+        variant = normalized_variant(str(item.plan_json.get("variant") or "unknown"))
+        with operation_span("render.enqueue", attributes={"video.variant": variant}):
+            trace_context: dict[str, str] = {}
+            if settings.tracing_enabled:
+                inject(trace_context)
+            queue.enqueue_call(
+                func="app.jobs.render_timeline_job",
+                args=(item.render_job_id, item.plan_json),
+                kwargs={"trace_context": trace_context},
+                timeout=settings.render_job_timeout_seconds,
+                result_ttl=86400,
+                failure_ttl=86400,
+            )
+
+
+def normalized_variant(variant: str) -> str:
+    return variant if variant in {"youtube_16x9", "shorts_9x16"} else "unknown"
 
 
 def mark_render_job_running(db: Session, *, render_job_id: str) -> RenderJob:
