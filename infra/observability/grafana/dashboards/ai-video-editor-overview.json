@@ -1,0 +1,209 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"hideZeros": false, "mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "expr": "sum by (method, route) (rate(ai_video_editor_api_http_requests_total[5m]))",
+          "legendFormat": "{{method}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "title": "API Request Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"decimals": 2, "max": 100, "min": 0, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "expr": "100 * sum(rate(ai_video_editor_api_http_requests_total{status=~\"5..\"}[5m])) / clamp_min(sum(rate(ai_video_editor_api_http_requests_total[5m])), 0.001)",
+          "refId": "A"
+        }
+      ],
+      "title": "API 5xx Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0},
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(ai_video_editor_api_http_request_duration_seconds_bucket[10m])))",
+          "refId": "A"
+        }
+      ],
+      "title": "API p95 Latency",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"decimals": 0}, "overrides": []},
+      "gridPos": {"h": 7, "w": 6, "x": 0, "y": 8},
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [{"expr": "max(ai_video_editor_render_queue_depth)", "refId": "A"}],
+      "title": "Render Queue Depth",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"decimals": 0, "max": 1, "min": 0}, "overrides": []},
+      "gridPos": {"h": 7, "w": 6, "x": 6, "y": 8},
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {"expr": "min by (dependency) (ai_video_editor_dependency_up)", "legendFormat": "{{dependency}}", "refId": "A"}
+      ],
+      "title": "Dependencies Up",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "jobs"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 8},
+      "id": 6,
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"hideZeros": false, "mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "expr": "sum by (variant, outcome) (increase(ai_video_editor_worker_render_jobs_total[1h]))",
+          "legendFormat": "{{variant}} {{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Worker Render Outcomes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 15},
+      "id": 7,
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"hideZeros": false, "mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, variant) (rate(ai_video_editor_worker_render_duration_seconds_bucket[30m])))",
+          "legendFormat": "{{variant}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Worker Render p95 Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"decimals": 0}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 15},
+      "id": 8,
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"hideZeros": false, "mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "expr": "sum by (workflow, outcome) (increase(ai_video_editor_workflow_events_total{outcome=~\"failed|denied\"}[1h]))",
+          "legendFormat": "{{workflow}} {{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Workflow Failures",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"decimals": 0}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 15},
+      "id": 9,
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"hideZeros": false, "mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "expr": "sum by (metric, outcome) (increase(ai_video_editor_quota_decisions_total[1h]))",
+          "legendFormat": "quota {{metric}} {{outcome}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (action, outcome) (increase(ai_video_editor_rate_limit_decisions_total[1h]))",
+          "legendFormat": "limit {{action}} {{outcome}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Quota and Rate-Limit Decisions",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["ai-video-editor", "operations"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "AI Video Editor Operations",
+  "uid": "ai-video-editor-ops",
+  "version": 1,
+  "weekStart": ""
+}

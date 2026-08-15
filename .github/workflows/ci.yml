@@ -74,13 +74,33 @@ jobs:
         run: |
           cp .env.example .env
           docker compose -f infra/docker/docker-compose.yml config >/tmp/compose-config.yml
+          docker compose --env-file .env \
+            -f infra/docker/docker-compose.yml \
+            -f infra/observability/docker-compose.observability.yml \
+            config >/tmp/observability-compose-config.yml
           rm .env
       - name: Validate Kubernetes YAML
         run: |
           ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_stream(File.read(f)); puts "ok #{f}" }' infra/k8s/*.yaml
-      - name: Validate Prometheus alert rules
+      - name: Validate observability configuration
         run: |
+          ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_stream(File.read(f)); puts "ok #{f}" }' \
+            infra/observability/*.yaml infra/observability/grafana/provisioning/*/*.yaml
+          jq empty infra/observability/grafana/dashboards/*.json
           docker run --rm --entrypoint promtool \
-            -v "$PWD/infra/observability:/etc/ai-video-observability:ro" \
+            -v "$PWD/infra/observability:/etc/prometheus:ro" \
+            -v /dev/null:/run/ai-video-editor/metrics-token:ro \
             prom/prometheus:v3.13.1 \
-            check rules /etc/ai-video-observability/prometheus-alerts.yaml
+            check config /etc/prometheus/prometheus.yaml
+          docker run --rm \
+            -v "$PWD/infra/observability/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro" \
+            otel/opentelemetry-collector-contrib:0.158.0 \
+            validate --config=/etc/otelcol-contrib/config.yaml
+          docker run --rm \
+            -e OTEL_COLLECTOR_BEARER_TOKEN=test-collector-token \
+            -e OTEL_TRACES_BACKEND_ENDPOINT=traces.example.internal:4317 \
+            -e OTEL_TRACES_BACKEND_AUTHORIZATION="Bearer test-backend-token" \
+            -e OTEL_TRACES_BACKEND_INSECURE=false \
+            -v "$PWD/infra/observability/otel-collector-kubernetes.yaml:/etc/otelcol-contrib/config.yaml:ro" \
+            otel/opentelemetry-collector-contrib:0.158.0 \
+            validate --config=/etc/otelcol-contrib/config.yaml

@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ai-video-worker
+  labels:
+    app: ai-video-worker
 spec:
   replicas: 1
   selector:
@@ -11,10 +13,6 @@ spec:
     metadata:
       labels:
         app: ai-video-worker
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/path: /metrics
-        prometheus.io/port: "9100"
     spec:
       containers:
         - name: worker
@@ -30,6 +28,17 @@ spec:
               value: /tmp/ai-video-editor
             - name: OTEL_SERVICE_NAME
               value: ai-video-editor-worker
+            - name: TRACING_ENABLED
+              value: "true"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector:4318/v1/traces
+            - name: OTEL_EXPORTER_OTLP_HEADERS
+              valueFrom:
+                secretKeyRef:
+                  name: ai-video-observability-secrets
+                  key: collector-exporter-headers
+            - name: OTEL_TRACE_SAMPLE_RATIO
+              value: "0.1"
             - name: OUTPUT_DELIVERY_LOCAL_ROOT
               value: /tmp/ai-video-editor/outputs
             - name: WORKER_METRICS_PORT
@@ -60,3 +69,18 @@ spec:
         - name: output-staging
           persistentVolumeClaim:
             claimName: ai-video-output-staging
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-video-worker
+  labels:
+    app: ai-video-worker
+spec:
+  type: ClusterIP
+  selector:
+    app: ai-video-worker
+  ports:
+    - name: metrics
+      port: 9100
+      targetPort: metrics

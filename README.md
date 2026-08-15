@@ -41,6 +41,8 @@ The current executable slice supports:
 - Check analysis provider health and retry transient external analysis failures.
 - Open a lightweight circuit breaker after repeated external analysis failures.
 - Expose internal analysis provider metrics for requests, retries, failures, circuit opens, and latency.
+- Export authenticated Prometheus metrics and privacy-safe OpenTelemetry traces through a Collector boundary.
+- Run an optional local Prometheus, Grafana, Jaeger, and Collector stack with a provisioned operations dashboard.
 - Generate deterministic timeline plans from analysis metadata.
 - Review, reject, regenerate, and approve timeline plans before rendering.
 - Use the dashboard project console to run the private workflow and review plans.
@@ -102,3 +104,4 @@ pytest
 - Deploy and rollback checklist: `docs/DEPLOY_ROLLBACK_CHECKLIST.md`
 - Production gap tracker: `docs/PRODUCTION_GAP_TRACKER.md`
 - RBAC design: `docs/RBAC_DESIGN.md`
+- Observability and monitoring deployment: `docs/OBSERVABILITY.md`

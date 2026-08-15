@@ -1,0 +1,49 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ai-video-api
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: ai-video-api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      authorization:
+        type: Bearer
+        credentials:
+          name: ai-video-observability-secrets
+          key: metrics-token
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ai-video-worker
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: ai-video-worker
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ai-video-otel-collector
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: otel-collector
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s

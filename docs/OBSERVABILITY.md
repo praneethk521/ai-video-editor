@@ -30,7 +30,7 @@ The worker serves metrics on `WORKER_METRICS_PORT`, default `9100`.
 
 RQ runs jobs in child processes. Set `PROMETHEUS_MULTIPROC_DIR` to a writable worker-local path so child process metrics are aggregated by the parent scrape server. Docker and Kubernetes use `/tmp/ai-video-editor/prometheus`.
 
-The worker metrics port is unauthenticated and must remain on a private container, pod, or service network. The Kubernetes manifest exposes it through pod scrape annotations only.
+The worker metrics port is unauthenticated and must remain on a private container, pod, or service network. The Kubernetes Service is cluster-private, and the provided ServiceMonitor scrapes it without exposing a host port.
 
 ## Prometheus Scraping
 
@@ -42,11 +42,11 @@ scrape_configs:
     metrics_path: /metrics
     bearer_token_file: /etc/prometheus/secrets/ai-video-metrics-token
     static_configs:
-      - targets: [ai-video-api:8000]
+      - targets: ["ai-video-api:8000"]
   - job_name: ai-video-worker
     metrics_path: /metrics
     static_configs:
-      - targets: [ai-video-worker:9100]
+      - targets: ["ai-video-worker:9100"]
 ```
 
 Load the versioned rules from `infra/observability/prometheus-alerts.yaml` through the Prometheus `rule_files` setting. The rules cover sustained API errors and latency, dependency outages, render backlog and failures, render latency, delivery failures, quota pressure, and rate-limit backend errors.
@@ -59,6 +59,28 @@ docker run --rm --entrypoint promtool \
   prom/prometheus:v3.13.1 \
   check rules /etc/ai-video-observability/prometheus-alerts.yaml
 ```
+
+## Local Observability Stack
+
+The Compose overlay starts Prometheus, Grafana, Jaeger, and an OpenTelemetry Collector alongside the application stack. It enables tracing for the API and worker, provisions both Grafana data sources, and opens the operations dashboard as Grafana's home dashboard.
+
+Set real `API_TOKEN` and `GRAFANA_ADMIN_PASSWORD` values in the local `.env`, then run from the repository root:
+
+```bash
+docker compose --env-file .env \
+  -f infra/docker/docker-compose.yml \
+  -f infra/observability/docker-compose.observability.yml \
+  up -d --build
+```
+
+| Surface | Local URL |
+| --- | --- |
+| Grafana operations dashboard | `http://localhost:3002` |
+| Prometheus | `http://localhost:9090` |
+| Jaeger query UI | `http://localhost:16686` |
+| OTLP/HTTP receiver | `http://localhost:4318` |
+
+Prometheus reads the API bearer token from a container-only volume populated by `metrics-token-init`; it is not written to a host file. Grafana and the observability backends bind to loopback only. Jaeger uses ephemeral local storage in this reference and is intended for development and validation, not production retention.
 
 ## Distributed Tracing
 
@@ -77,6 +99,39 @@ API traces include route-template inbound requests plus explicit analysis-provid
 Trace attributes and exception events must never include request or response bodies, captured headers, filenames, project or asset IDs, private locators, Drive folder/file IDs, S3 keys, OAuth data, raw URL paths, query strings, or exception messages. API spans use matched route templates, workflow attributes use bounded values, and failures export only the exception class.
 
 Route OTLP traffic through an OpenTelemetry Collector in production rather than exposing a trace backend directly to application containers. Keep exporter authentication headers in the API and worker secret stores.
+
+Both Collector configurations remove URL, query, database-statement, and exception-message attributes before export as a second privacy boundary. `infra/observability/otel-collector.yaml` targets local Jaeger; `infra/observability/otel-collector-kubernetes.yaml` targets an operator-selected OTLP backend.
+
+## Kubernetes Reference
+
+The Kubernetes reference includes a two-replica Collector, health probes, resource limits, a cluster-private OTLP Service, restricted ingress, authenticated OTLP receivers, and Prometheus Operator ServiceMonitors. Create the required configuration and secrets in the application namespace before applying the workloads:
+
+```bash
+COLLECTOR_TOKEN="$(openssl rand -hex 32)"
+
+kubectl create configmap ai-video-otel-collector-config \
+  --from-file=config.yaml=infra/observability/otel-collector-kubernetes.yaml \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create configmap ai-video-observability-settings \
+  --from-literal=traces-backend-endpoint="$TRACES_BACKEND_ENDPOINT" \
+  --from-literal=traces-backend-insecure=false \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create secret generic ai-video-observability-secrets \
+  --from-literal=collector-bearer-token="$COLLECTOR_TOKEN" \
+  --from-literal=collector-exporter-headers="authorization=Bearer%20$COLLECTOR_TOKEN" \
+  --from-literal=metrics-token="$API_TOKEN" \
+  --from-literal=traces-backend-authorization="Bearer $TRACES_BACKEND_TOKEN" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl apply -f infra/k8s/otel-collector-deployment.yaml
+kubectl apply -f infra/k8s/observability-servicemonitors.yaml
+```
+
+The `metrics-token` value must match the API's global service token. The ServiceMonitor label `release: kube-prometheus-stack` may need to match the Prometheus Operator selector used by the target cluster. Import `infra/observability/grafana/dashboards/ai-video-editor-overview.json` through the cluster's Grafana dashboard sidecar or managed Grafana provisioning workflow.
+
+Use a TLS-enabled backend endpoint in production and leave `traces-backend-insecure=false`. Limit the Collector Service to the application namespace, rotate both Collector and backend credentials, and use a persistent or managed trace store with explicit retention controls.
 
 ## Operational Signals
 

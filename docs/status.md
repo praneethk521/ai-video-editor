@@ -83,6 +83,11 @@ Last updated: 2026-08-15
 - Added W3C trace-context propagation through RQ using route-template and bounded workflow spans that omit URLs, queries, headers, identifiers, exception messages, and private locators.
 - Added nine Prometheus alert rules for API reliability, dependencies, queue backlog, rendering, delivery, quota pressure, and rate-limit backend failures.
 - Added CI validation for Prometheus rules plus tracing configuration for Docker Compose and Kubernetes workloads.
+- Added a Compose observability overlay with a privacy-filtering OpenTelemetry Collector, Prometheus, Jaeger, and provisioned Grafana data sources.
+- Added a nine-panel Grafana operations dashboard for API health, dependencies, queue state, rendering, workflow failures, quotas, and rate limits.
+- Added an authenticated two-replica Kubernetes Collector reference with health probes, resource limits, private ingress policy, and secret-backed exporter configuration.
+- Added Prometheus Operator ServiceMonitors for authenticated API, private worker, and Collector metrics scraping.
+- Added CI validation for base and observability Compose expansion, Collector configs, Prometheus config and rules, Grafana provisioning YAML, and dashboard JSON.
 
 ## Verification
 
@@ -90,7 +95,13 @@ Last updated: 2026-08-15
 - Worker tests: passed locally (`6 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
+- Base and observability Docker Compose expansion: passed locally.
+- Kubernetes and observability YAML plus Grafana dashboard JSON validation: passed locally.
+- Prometheus config and alert rules: passed `promtool` validation (`9 rules found`).
+- Local Collector configs: passed OpenTelemetry Collector `validate` on `0.158.0`.
+- End-to-end telemetry check: a test span crossed the Collector into Jaeger with private URL and exception-message fields removed.
+- Grafana provisioning check: Prometheus and Jaeger data sources plus the nine-panel operations dashboard loaded successfully.
 
 ## Next
 
-- Add an OpenTelemetry Collector and Prometheus/Grafana deployment reference with dashboards, private scrape configuration, and secret wiring.
+- Add encrypted PostgreSQL backup and restore automation with a scheduled Kubernetes job, retention controls, and a documented restore drill.

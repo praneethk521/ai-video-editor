@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  labels:
+    app: otel-collector
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+        - name: collector
+          image: otel/opentelemetry-collector-contrib:0.158.0
+          args: ["--config=/etc/otelcol-contrib/config.yaml"]
+          env:
+            - name: OTEL_COLLECTOR_BEARER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ai-video-observability-secrets
+                  key: collector-bearer-token
+            - name: OTEL_TRACES_BACKEND_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-video-observability-settings
+                  key: traces-backend-endpoint
+            - name: OTEL_TRACES_BACKEND_AUTHORIZATION
+              valueFrom:
+                secretKeyRef:
+                  name: ai-video-observability-secrets
+                  key: traces-backend-authorization
+            - name: OTEL_TRACES_BACKEND_INSECURE
+              valueFrom:
+                configMapKeyRef:
+                  name: ai-video-observability-settings
+                  key: traces-backend-insecure
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+            - name: metrics
+              containerPort: 8888
+            - name: health
+              containerPort: 13133
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol-contrib
+              readOnly: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: config
+          configMap:
+            name: ai-video-otel-collector-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  labels:
+    app: otel-collector
+spec:
+  type: ClusterIP
+  selector:
+    app: otel-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+    - name: metrics
+      port: 8888
+      targetPort: metrics
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: otel-collector-private-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app: otel-collector
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [ai-video-api, ai-video-worker]
+      ports:
+        - protocol: TCP
+          port: 4317
+        - protocol: TCP
+          port: 4318
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8888

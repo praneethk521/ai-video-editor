@@ -1,0 +1,84 @@
+services:
+  api:
+    environment:
+      TRACING_ENABLED: "true"
+
+  worker:
+    environment:
+      TRACING_ENABLED: "true"
+
+  metrics-token-init:
+    image: busybox:1.37.0
+    env_file:
+      - ../../.env
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        umask 077
+        printf '%s' "$$API_TOKEN" > /run/ai-video-editor/metrics-token
+        chown 65534:65534 /run/ai-video-editor/metrics-token
+        chmod 0400 /run/ai-video-editor/metrics-token
+    volumes:
+      - observability-secrets:/run/ai-video-editor
+    restart: "no"
+
+  jaeger:
+    image: jaegertracing/jaeger:2.20.0
+    ports:
+      - "127.0.0.1:16686:16686"
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.158.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ../observability/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    depends_on:
+      - jaeger
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.13.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ../observability/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ../observability/prometheus-alerts.yaml:/etc/prometheus/prometheus-alerts.yaml:ro
+      - observability-secrets:/run/ai-video-editor:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      metrics-token-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.1.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/ai-video-editor-overview.json
+    volumes:
+      - ../observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3002:3000"
+    depends_on:
+      - prometheus
+      - jaeger
+    restart: unless-stopped
+
+volumes:
+  observability-secrets:
+  prometheus-data:
+  grafana-data:

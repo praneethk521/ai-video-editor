@@ -11,6 +11,8 @@
 7. Use a distributed trace to compare API handling, provider analysis, RQ queue delay, worker rendering, callbacks, and private delivery latency.
 8. Confirm trace exports contain only normalized paths and bounded operational attributes before enabling tracing in a new environment.
 9. Validate changes to `infra/observability/prometheus-alerts.yaml` with `promtool check rules` before deployment.
+10. Check `otelcol_exporter_send_failed_spans` and `otelcol_exporter_queue_size` when traces are missing from the backend.
+11. Verify Grafana data-source health and Prometheus target state before treating an empty dashboard as an application outage.
 
 ## Incident: Suspected Secret Leak
 
