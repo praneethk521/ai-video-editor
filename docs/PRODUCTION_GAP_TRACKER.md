@@ -14,7 +14,7 @@ This tracker captures remaining M4 hardening work before treating the platform a
 | Observability | P1 | Complete | Prometheus metrics and alerts, structured logs, privacy-safe traces, Collector boundaries, private scrape configuration, and a provisioned operations dashboard cover core workflows. |
 | Backup and restore | P1 | Planned | Database and private metadata backups have tested restore procedures. |
 | Data retention automation | P1 | In progress | Staged and local-private delivered output cleanup is automated; provider-backed cleanup is reconciled. |
-| Security review | P1 | Planned | Threat model, dependency review, OAuth scope review, and secret-handling review are complete. |
+| Security review | P1 | Complete | Threat model, OAuth and secret-handling review, clean application audits, clean fixable high/critical image scans, and CI security gates are documented. |
 | Load testing | P2 | Planned | Expected concurrent project, render, and dashboard workflows meet latency and reliability targets. |
 
 ## P0 Exit Criteria

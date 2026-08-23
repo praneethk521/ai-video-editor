@@ -53,5 +53,6 @@ Status: In progress
 - Cost controls per project.
 - Full Kubernetes/ECS deployment.
 - Prometheus metrics and alerts plus privacy-safe OpenTelemetry traces.
+- Threat model, dependency/OAuth review, secret scan, and container vulnerability gates (complete).
 - Branch protection and required PR reviews.
 - Production gap tracking with exit criteria.

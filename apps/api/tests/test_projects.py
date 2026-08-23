@@ -4,12 +4,13 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import httpx
+import pytest
 
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.entities import MediaAsset, OAuthConnection, OutputVideo, Project, ProjectStatus
 from app.services.malware import ScanResult
-from app.services.media import decrypt_token_payload
+from app.services.media import decrypt_token_payload, validate_google_oauth_scopes
 
 
 def test_project_lifecycle_keeps_private_media(client, auth_headers):
@@ -630,7 +631,9 @@ def test_google_oauth_callback_encrypts_tokens(client, auth_headers, monkeypatch
     )
     assert connected.status_code == 200
     authorization_url = connected.json()["authorization_url"]
-    state = parse_qs(urlparse(authorization_url).query)["state"][0]
+    authorization_query = parse_qs(urlparse(authorization_url).query)
+    state = authorization_query["state"][0]
+    assert authorization_query["include_granted_scopes"] == ["false"]
 
     callback = client.get(f"/projects/{project['id']}/connect-drive/callback", params={"code": "oauth-code", "state": state})
     assert callback.status_code == 200
@@ -650,6 +653,31 @@ def test_google_oauth_callback_encrypts_tokens(client, auth_headers, monkeypatch
         assert "access-token-value" not in connection.encrypted_token_json
         token_payload = decrypt_token_payload(connection.encrypted_token_json)
         assert token_payload["access_token"] == "access-token-value"
+
+
+def test_google_oauth_rejects_scope_escalation(monkeypatch):
+    monkeypatch.setattr(settings, "google_drive_scopes", "https://www.googleapis.com/auth/drive.readonly")
+
+    with pytest.raises(ValueError, match="exactly the requested Drive scopes"):
+        validate_google_oauth_scopes(
+            {
+                "scope": (
+                    "https://www.googleapis.com/auth/drive.readonly "
+                    "https://www.googleapis.com/auth/drive"
+                )
+            }
+        )
+
+
+def test_google_oauth_rejects_partial_grant(monkeypatch):
+    monkeypatch.setattr(
+        settings,
+        "google_drive_scopes",
+        "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file",
+    )
+
+    with pytest.raises(ValueError, match="exactly the requested Drive scopes"):
+        validate_google_oauth_scopes({"scope": "https://www.googleapis.com/auth/drive.file"})
 
 
 def test_sync_drive_folder_ingests_private_media_and_skips_duplicates(client, auth_headers, monkeypatch):

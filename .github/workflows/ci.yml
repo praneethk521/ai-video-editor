@@ -7,14 +7,15 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   api-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
       - name: Install API dependencies
@@ -22,13 +23,18 @@ jobs:
         run: pip install -r requirements-dev.txt
       - name: Run API tests
         working-directory: apps/api
-        run: pytest
+        run: python -m pytest
+      - name: Lint API
+        working-directory: apps/api
+        run: python -m ruff check app tests
 
   worker-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
       - name: Install worker dependencies
@@ -36,26 +42,85 @@ jobs:
         run: pip install -r requirements-dev.txt
       - name: Run worker tests
         working-directory: apps/worker
-        run: pytest
+        run: python -m pytest
+      - name: Lint worker
+        working-directory: apps/worker
+        run: python -m ruff check app tests
 
   web-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "22"
       - name: Install web dependencies
         working-directory: apps/web
-        run: npm install
+        run: npm ci --ignore-scripts
       - name: Build web
         working-directory: apps/web
         run: npm run build
+      - name: Audit web dependencies
+        working-directory: apps/web
+        run: npm audit --audit-level=high
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+      - name: Install pip-audit
+        run: pip install pip-audit==2.10.1
+      - name: Audit API dependencies
+        run: pip-audit -r apps/api/requirements.txt
+      - name: Audit worker dependencies
+        run: pip-audit -r apps/worker/requirements.txt
+
+  container-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Scan repository for committed secrets
+        run: >-
+          docker run --rm
+          -v "$PWD:/repo:ro"
+          aquasec/trivy:0.74.0
+          fs --scanners secret --exit-code 1 /repo
+      - name: Build runtime images
+        run: |
+          docker build -t ai-video-editor-api:ci -f apps/api/Dockerfile .
+          docker build -t ai-video-editor-worker:ci -f apps/worker/Dockerfile .
+      - name: Verify non-root runtime imports
+        run: |
+          test "$(docker image inspect ai-video-editor-api:ci --format '{{.Config.User}}')" = "10001:10001"
+          test "$(docker image inspect ai-video-editor-worker:ci --format '{{.Config.User}}')" = "10001:10001"
+          docker run --rm --read-only --tmpfs /tmp:rw,size=64m ai-video-editor-api:ci \
+            python -c 'import app.main; print(app.main.app.title)'
+          docker run --rm --read-only --tmpfs /tmp:rw,size=64m ai-video-editor-worker:ci \
+            python -c 'import app.render; print(app.render.VideoRenderer.__name__)'
+      - name: Scan runtime images
+        run: |
+          docker run --rm -v trivy-cache:/root/.cache -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.74.0 image --scanners vuln --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 \
+            ai-video-editor-api:ci
+          docker run --rm -v trivy-cache:/root/.cache -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.74.0 image --scanners vuln --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 \
+            ai-video-editor-worker:ci
 
   shell-scripts:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Install ShellCheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: Check shell script syntax
@@ -69,7 +134,9 @@ jobs:
   infra-validation:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Validate Docker Compose config
         run: |
           cp .env.example .env

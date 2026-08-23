@@ -82,7 +82,7 @@ def build_google_authorization_url(*, project_id: str, state: str) -> str:
         "scope": settings.google_drive_scopes,
         "access_type": "offline",
         "prompt": "consent",
-        "include_granted_scopes": "true",
+        "include_granted_scopes": "false",
         "state": state,
     }
     return f"{settings.google_oauth_authorize_url}?{urlencode(params)}"
@@ -131,7 +131,20 @@ def exchange_google_oauth_code(*, project_id: str, code: str) -> dict:
     payload = response.json()
     if "access_token" not in payload:
         raise ValueError("Google OAuth token response did not include an access token")
+    validate_google_oauth_scopes(payload)
     return payload
+
+
+def validate_google_oauth_scopes(token_payload: dict) -> None:
+    raw_granted_scopes = token_payload.get("scope")
+    if raw_granted_scopes is None:
+        return
+    if not isinstance(raw_granted_scopes, str):
+        raise ValueError("Google OAuth token response included invalid scope metadata")
+    requested_scopes = set(settings.google_drive_scopes.split())
+    granted_scopes = set(raw_granted_scopes.split())
+    if granted_scopes != requested_scopes:
+        raise ValueError("Google OAuth token did not grant exactly the requested Drive scopes")
 
 
 def encryption_key() -> bytes:

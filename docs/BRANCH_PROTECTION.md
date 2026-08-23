@@ -9,6 +9,8 @@ Require the GitHub Actions checks from `.github/workflows/ci.yml`:
 - `api-tests`
 - `worker-tests`
 - `web-build`
+- `dependency-audit`
+- `container-security`
 - `shell-scripts`
 - `infra-validation`
 

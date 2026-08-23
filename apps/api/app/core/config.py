@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     oidc_role_claim: str = "role"
     oidc_admin_role: str = "admin"
     oidc_leeway_seconds: int = Field(default=30, ge=0, le=300)
+    cors_allowed_origins: str = "http://localhost:3000,http://localhost:3001"
+    trusted_hosts: str = "localhost,127.0.0.1,testserver,api"
     database_url: str = "sqlite+pysqlite:///./local.sqlite3"
     redis_url: str = "redis://localhost:6379/0"
     render_queue_backend: str = "rq"
@@ -117,6 +119,16 @@ def validate_auth_configuration(value: Settings) -> None:
             raise RuntimeError("production requires LEGACY_SERVICE_TOKEN_ENABLED=false")
         if not value.oidc_issuer_url.startswith("https://") or not value.oidc_jwks_url.startswith("https://"):
             raise RuntimeError("production OIDC issuer and JWKS URLs must use HTTPS")
+        origins = comma_separated_values(value.cors_allowed_origins)
+        if not origins or any(not origin.startswith("https://") for origin in origins):
+            raise RuntimeError("production CORS_ALLOWED_ORIGINS must contain explicit HTTPS origins")
+        hosts = comma_separated_values(value.trusted_hosts)
+        if not hosts or "*" in hosts:
+            raise RuntimeError("production TRUSTED_HOSTS must contain explicit hosts")
+
+
+def comma_separated_values(raw_value: str) -> list[str]:
+    return [value.strip() for value in raw_value.split(",") if value.strip()]
 
 
 settings = Settings()

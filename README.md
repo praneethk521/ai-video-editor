@@ -90,7 +90,7 @@ cd apps/api
 python -m venv .venv
 . .venv/bin/activate
 pip install -r requirements-dev.txt
-pytest
+python -m pytest
 ```
 
 ## Status Tracking
@@ -107,5 +107,7 @@ pytest
 - Versioning: `docs/VERSIONING.md`
 - Deploy and rollback checklist: `docs/DEPLOY_ROLLBACK_CHECKLIST.md`
 - Production gap tracker: `docs/PRODUCTION_GAP_TRACKER.md`
+- Threat model: `docs/THREAT_MODEL.md`
+- Security review and evidence: `docs/SECURITY_REVIEW.md`
 - RBAC design: `docs/RBAC_DESIGN.md`
 - Observability and monitoring deployment: `docs/OBSERVABILITY.md`

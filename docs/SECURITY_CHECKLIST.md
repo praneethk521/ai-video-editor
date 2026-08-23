@@ -8,6 +8,7 @@
 - Require the checks listed in `docs/BRANCH_PROTECTION.md`.
 - Enable secret scanning and push protection.
 - Enable dependency scanning and Dependabot.
+- Keep npm, pip, repository-secret, and runtime-image audit checks required in CI.
 - Use GitHub Actions OIDC for cloud deploy permissions.
 
 ## Secrets
@@ -27,6 +28,7 @@
 - Keep `GOOGLE_DRIVE_OUTPUT_FOLDER_ID` private and access-controlled.
 - Store Drive file identifiers and checksums as metadata, not raw public URLs.
 - Store encrypted tokens only if refresh access is required.
+- Disable incremental authorization unless a reviewed product flow needs it, and verify returned scopes against the request.
 
 ## S3 Output Delivery
 
@@ -51,11 +53,13 @@
 ## Runtime
 
 - Require authentication on every endpoint.
+- Configure explicit HTTPS `CORS_ALLOWED_ORIGINS` and non-wildcard `TRUSTED_HOSTS` in production.
 - Use OIDC for people and stored, scoped service tokens for workloads in production.
 - Keep `LEGACY_SERVICE_TOKEN_ENABLED=false` in production.
 - Review project and team membership audit events during access investigations.
 - Add rate limits and cost quotas.
 - Run workers with no unnecessary Linux capabilities.
+- Run API and worker images as non-root with read-only roots, runtime-default seccomp, no privilege escalation, and bounded writable mounts.
 - Use read-only filesystems and temp volumes with size limits.
 - Do not execute user-provided scripts.
 - Isolate jobs by project and user.

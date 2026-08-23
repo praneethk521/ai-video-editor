@@ -96,13 +96,24 @@ Last updated: 2026-08-23
 - Added a user-facing operator delivery endpoint so OIDC dashboard users no longer depend on an internal service token.
 - Added server-derived project roles and project/team access management controls to the dashboard.
 - Added production OIDC, service-token provisioning, Kubernetes configuration, and rollout documentation.
+- Added a private-media threat model and security review with an explicit residual-risk register.
+- Upgraded the web and API dependency graphs to resolve all known npm and pip audit findings at review time.
+- Added explicit CORS origins, trusted hosts, browser/API security headers, and fail-closed production boundary validation.
+- Disabled Google OAuth incremental grants and validate that reported token scopes exactly match the requested Drive scopes.
+- Hardened API, worker, and n8n runtime references with non-root users, read-only filesystems, dropped capabilities, seccomp, bounded temporary storage, and loopback-only local ports.
+- Added pinned GitHub Actions, working Python module test commands, Ruff gates, secret scanning, runtime image import checks, and Trivy image gates to CI.
+- Added a root security disclosure policy for the public repository.
 
 ## Verification
 
-- API tests: passed locally (`55 passed`).
+- API tests: passed locally (`65 passed`).
 - Worker tests: passed locally (`6 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
+- npm audit: no known vulnerabilities.
+- API and worker `pip-audit`: no known vulnerabilities.
+- Trivy repository secret scan: no findings.
+- API and worker image scan: zero fixable high/critical findings after OS security upgrades; both images execute as UID/GID 10001 with read-only roots.
 - Base and observability Docker Compose expansion: passed locally.
 - Kubernetes and observability YAML plus Grafana dashboard JSON validation: passed locally.
 - Prometheus config and alert rules: passed `promtool` validation (`9 rules found`).
@@ -112,4 +123,4 @@ Last updated: 2026-08-23
 
 ## Next
 
-- Complete the P1 security review with a threat model, dependency audit, OAuth scope review, and documented remediation evidence.
+- Implement provider-native Drive/S3 retention deletion and reconciliation with auditable dry-run and failure handling.

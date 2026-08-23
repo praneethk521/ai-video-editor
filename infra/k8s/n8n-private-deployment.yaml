@@ -12,14 +12,26 @@ spec:
       labels:
         app: n8n-private
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: n8n
-          image: n8nio/n8n:1.73.1
+          image: n8nio/n8n:1.123.65
           envFrom:
             - secretRef:
                 name: n8n-secrets
           ports:
             - containerPort: 5678
+          volumeMounts:
+            - name: n8n-data
+              mountPath: /home/node/.n8n
+            - name: n8n-tmp
+              mountPath: /tmp
           resources:
             requests:
               cpu: "500m"
@@ -27,6 +39,19 @@ spec:
             limits:
               cpu: "2"
               memory: "2Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: n8n-data
+          persistentVolumeClaim:
+            claimName: n8n-private-data
+        - name: n8n-tmp
+          emptyDir:
+            sizeLimit: 2Gi
 ---
 apiVersion: v1
 kind: Service
@@ -39,4 +64,14 @@ spec:
   ports:
     - port: 5678
       targetPort: 5678
-
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-private-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi

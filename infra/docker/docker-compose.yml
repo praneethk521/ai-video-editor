@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: video
       POSTGRES_DB: video_editor
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -19,12 +19,12 @@ services:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
   clamav:
     image: clamav/clamav:1.4
     ports:
-      - "3310:3310"
+      - "127.0.0.1:3310:3310"
     healthcheck:
       test: ["CMD-SHELL", "clamdscan --version >/dev/null 2>&1"]
       interval: 30s
@@ -50,9 +50,16 @@ services:
       clamav:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
+    read_only: true
+    tmpfs:
+      - /tmp:size=1g,mode=1777
     volumes:
       - output-staging:/tmp/ai-video-editor
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   worker:
     build:
@@ -71,7 +78,7 @@ services:
       - redis
     read_only: true
     ports:
-      - "9100:9100"
+      - "127.0.0.1:9100:9100"
     tmpfs:
       - /tmp:size=4g,mode=1777
     volumes:
@@ -82,10 +89,12 @@ services:
       - ALL
 
   n8n:
-    image: n8nio/n8n:1.73.1
+    image: n8nio/n8n:1.123.65
+    user: "1000:1000"
     env_file:
       - ../../.env
     environment:
+      API_BASE_URL: http://api:8000
       N8N_HOST: localhost
       N8N_PORT: 5678
       N8N_PROTOCOL: http
@@ -99,9 +108,16 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "5678:5678"
+      - "127.0.0.1:5678:5678"
+    read_only: true
+    tmpfs:
+      - /tmp:size=2g,mode=1777
     volumes:
       - n8n-data:/home/node/.n8n
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
 volumes:
   postgres-data:

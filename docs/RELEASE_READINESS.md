@@ -7,6 +7,7 @@ Use this checklist before tagging or deploying the current MVP slice. This is an
 - API tests pass locally and in CI: `api-tests`.
 - Worker tests pass locally and in CI: `worker-tests`.
 - Web production build passes locally and in CI: `web-build`.
+- Dependency, secret, runtime image, and non-root container checks pass in CI: `dependency-audit` and `container-security`.
 - Shell scripts pass syntax and ShellCheck linting: `shell-scripts`.
 - Docker Compose and Kubernetes manifests validate: `infra-validation`.
 - `scripts/smoke-retention-cleanup.sh` runs successfully against a completed local smoke project.
@@ -53,7 +54,8 @@ Use this checklist before tagging or deploying the current MVP slice. This is an
 - Full production renderer hardening still needs real workload tuning.
 - Provider-native deletion for Drive and S3 retention cleanup is not automated by the API.
 - Full Kubernetes/ECS production deployment remains a starter path, not a locked reference architecture.
-- Backup/restore, security review, and load testing still require deployment evidence.
+- Backup/restore and load testing still require deployment evidence.
+- Authenticated GitHub verification of branch protection, private vulnerability reporting, secret scanning, and push protection remains external state.
 - Branch protection settings must be applied in GitHub; this repository only documents them.
 
 ## Release Decision
