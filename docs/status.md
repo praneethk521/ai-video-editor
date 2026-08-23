@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-08-15
+Last updated: 2026-08-23
 
 ## Completed
 
@@ -88,10 +88,18 @@ Last updated: 2026-08-15
 - Added an authenticated two-replica Kubernetes Collector reference with health probes, resource limits, private ingress policy, and secret-backed exporter configuration.
 - Added Prometheus Operator ServiceMonitors for authenticated API, private worker, and Collector metrics scraping.
 - Added CI validation for base and observability Compose expansion, Collector configs, Prometheus config and rules, Grafana provisioning YAML, and dashboard JSON.
+- Added issuer-, audience-, signature-, algorithm-, expiration-, and required-claim validation for OIDC user identities with trusted JWKS key rotation.
+- Added stable OIDC user provisioning, email collision protection, deployment-admin claim mapping, and a production fail-closed authentication guard.
+- Disabled the legacy shared service-token bridge in production while retaining explicit local smoke compatibility.
+- Added stored orchestrator principals with project-scoped operator access for n8n without granting human or owner administration rights.
+- Added audited owner-managed direct project memberships, project team assignments, team rosters, and final-team-owner protection.
+- Added a user-facing operator delivery endpoint so OIDC dashboard users no longer depend on an internal service token.
+- Added server-derived project roles and project/team access management controls to the dashboard.
+- Added production OIDC, service-token provisioning, Kubernetes configuration, and rollout documentation.
 
 ## Verification
 
-- API tests: passed locally (`40 passed`).
+- API tests: passed locally (`55 passed`).
 - Worker tests: passed locally (`6 passed`).
 - Ruff checks: passed locally.
 - Web build: passed locally with Next.js production build.
@@ -104,4 +112,4 @@ Last updated: 2026-08-15
 
 ## Next
 
-- Complete production RBAC by replacing the legacy single-user bearer bridge with validated OIDC identities, owner-managed project/team memberships, and endpoint-policy matrix tests.
+- Complete the P1 security review with a threat model, dependency audit, OAuth scope review, and documented remediation evidence.

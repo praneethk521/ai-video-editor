@@ -195,6 +195,43 @@ def test_project_operator_can_preview_but_not_execute_retention_cleanup(client, 
     assert execution.status_code == 403
 
 
+def test_output_delivery_requires_operator_role(client, auth_headers, db_session):
+    project = Project(name="Delivery policy project", owner_user_id="owner-user")
+    db_session.add(project)
+    db_session.flush()
+    db_session.add_all(
+        [
+            ProjectMember(project_id=project.id, user_id="viewer-user", role="viewer"),
+            ProjectMember(project_id=project.id, user_id="operator-user", role="operator"),
+        ]
+    )
+    db_session.commit()
+
+    def viewer_user():
+        return CurrentUser("viewer-user", "viewer@example.test")
+
+    client.app.dependency_overrides[get_current_user] = viewer_user
+    viewer_response = client.post(
+        f"/projects/{project.id}/outputs/missing-output/deliver", json={"target": "drive"}, headers=auth_headers
+    )
+
+    def operator_user():
+        return CurrentUser("operator-user", "operator@example.test")
+
+    client.app.dependency_overrides[get_current_user] = operator_user
+    try:
+        operator_response = client.post(
+            f"/projects/{project.id}/outputs/missing-output/deliver",
+            json={"target": "drive"},
+            headers=auth_headers,
+        )
+    finally:
+        client.app.dependency_overrides.clear()
+
+    assert viewer_response.status_code == 403
+    assert operator_response.status_code == 404
+
+
 def test_admin_can_delete_project(client, auth_headers, db_session):
     project = Project(name="Admin project", owner_user_id="owner-user")
     db_session.add(project)

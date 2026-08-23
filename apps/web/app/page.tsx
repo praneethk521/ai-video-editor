@@ -9,9 +9,13 @@ import {
   GitBranch,
   Loader2,
   Play,
+  Plus,
   RefreshCw,
   ShieldCheck,
+  Trash2,
   UploadCloud,
+  UserPlus,
+  Users,
   XCircle
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -56,6 +60,7 @@ type TimelinePlan = {
 type ProjectStatus = {
   project_id: string;
   status: string;
+  role: ProjectRole;
   media_count: number;
   render_jobs: Array<{ id: string; variant: string; status: string }>;
 };
@@ -151,6 +156,28 @@ type LogEntry = {
 };
 
 type ProjectRole = "viewer" | "reviewer" | "operator" | "owner" | "admin";
+type MembershipRole = Exclude<ProjectRole, "admin">;
+
+type ProjectMembership = {
+  id: string;
+  principal_type: "user" | "team";
+  principal_id: string;
+  principal_name: string;
+  role: MembershipRole;
+};
+
+type Team = {
+  id: string;
+  name: string;
+  role: ProjectRole;
+};
+
+type TeamMember = {
+  id: string;
+  user_id: string;
+  email: string;
+  role: MembershipRole;
+};
 
 const defaultApiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 const roleRanks: Record<ProjectRole, number> = {
@@ -160,7 +187,7 @@ const roleRanks: Record<ProjectRole, number> = {
   owner: 40,
   admin: 50
 };
-const roleOptions: ProjectRole[] = ["owner", "operator", "reviewer", "viewer", "admin"];
+const membershipRoleOptions: MembershipRole[] = ["owner", "operator", "reviewer", "viewer"];
 
 function variantLabel(variant: string) {
   return variant === "youtube_16x9" ? "YouTube 16:9" : "Shorts 9:16";
@@ -216,6 +243,16 @@ export default function Page() {
   const [cleanupRows, setCleanupRows] = useState<OutputCleanupRow[]>([]);
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
   const [usage, setUsage] = useState<ProjectUsage | null>(null);
+  const [projectMembers, setProjectMembers] = useState<ProjectMembership[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [principalType, setPrincipalType] = useState<"user" | "team">("user");
+  const [principalId, setPrincipalId] = useState("");
+  const [membershipRole, setMembershipRole] = useState<MembershipRole>("viewer");
+  const [newTeamName, setNewTeamName] = useState("");
+  const [selectedTeamId, setSelectedTeamId] = useState("");
+  const [teamUserId, setTeamUserId] = useState("");
+  const [teamMemberRole, setTeamMemberRole] = useState<MembershipRole>("viewer");
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
@@ -270,6 +307,7 @@ export default function Page() {
     if (!targetProjectId) return;
     const nextStatus = await api<ProjectStatus>(`/projects/${targetProjectId}/status`);
     setStatus(nextStatus);
+    setProjectRole(nextStatus.role);
   }
 
   async function refreshUsage(targetProjectId = projectId) {
@@ -303,13 +341,15 @@ export default function Page() {
         body: JSON.stringify({ name: projectName })
       });
       setProjectId(project.id);
-      setStatus({ project_id: project.id, status: project.status, media_count: 0, render_jobs: [] });
+      setStatus({ project_id: project.id, status: project.status, role: "owner", media_count: 0, render_jobs: [] });
+      setProjectRole("owner");
       setPlans([]);
       setOutputs([]);
       setRetentionRows([]);
       setCleanupRows([]);
       setAnalysisResults([]);
       setUsage(null);
+      setProjectMembers([]);
     });
   }
 
@@ -420,12 +460,87 @@ export default function Page() {
 
   async function deliverOutput(output: OutputVideo) {
     await run("Output delivery triggered", async () => {
-      await api(`/internal/output-videos/${output.id}/deliver`, {
+      await api(`/projects/${projectId}/outputs/${output.id}/deliver`, {
         method: "POST",
         body: JSON.stringify({ target: output.delivery?.target ?? "drive" })
       });
       await refreshOutputs();
       await refreshUsage();
+    });
+  }
+
+  async function loadAccess() {
+    await run("Access loaded", async () => {
+      const [projectResponse, teamsResponse] = await Promise.all([
+        api<{ members: ProjectMembership[] }>(`/projects/${projectId}/members`),
+        api<{ teams: Team[] }>("/teams")
+      ]);
+      setProjectMembers(projectResponse.members);
+      setTeams(teamsResponse.teams);
+    });
+  }
+
+  async function grantProjectAccess() {
+    await run("Project access updated", async () => {
+      const path = principalType === "user"
+        ? `/projects/${projectId}/members/users`
+        : `/projects/${projectId}/members/teams/${principalId}`;
+      const body = principalType === "user"
+        ? { email: principalId.trim().toLowerCase(), role: membershipRole }
+        : { role: membershipRole };
+      await api(path, {
+        method: "PUT",
+        body: JSON.stringify(body)
+      });
+      setPrincipalId("");
+      const response = await api<{ members: ProjectMembership[] }>(`/projects/${projectId}/members`);
+      setProjectMembers(response.members);
+    });
+  }
+
+  async function revokeProjectAccess(member: ProjectMembership) {
+    await run("Project access removed", async () => {
+      const principalPath = member.principal_type === "user" ? "users" : "teams";
+      await api(`/projects/${projectId}/members/${principalPath}/${member.principal_id}`, { method: "DELETE" });
+      setProjectMembers((current) => current.filter((row) => row.id !== member.id));
+    });
+  }
+
+  async function createTeam() {
+    await run("Team created", async () => {
+      const team = await api<Team>("/teams", { method: "POST", body: JSON.stringify({ name: newTeamName }) });
+      setNewTeamName("");
+      setSelectedTeamId(team.id);
+      setTeamMembers([]);
+      const response = await api<{ teams: Team[] }>("/teams");
+      setTeams(response.teams);
+    });
+  }
+
+  async function loadTeamMembers(targetTeamId = selectedTeamId) {
+    if (!targetTeamId) return;
+    await run("Team members loaded", async () => {
+      const response = await api<{ members: TeamMember[] }>(`/teams/${targetTeamId}/members`);
+      setTeamMembers(response.members);
+    });
+  }
+
+  async function grantTeamAccess() {
+    await run("Team member updated", async () => {
+      await api(`/teams/${selectedTeamId}/members`, {
+        method: "PUT",
+        body: JSON.stringify({ email: teamUserId.trim().toLowerCase(), role: teamMemberRole })
+      });
+      setTeamUserId("");
+      const response = await api<{ members: TeamMember[] }>(`/teams/${selectedTeamId}/members`);
+      setTeamMembers(response.members);
+    });
+  }
+
+  async function removeTeamMember(member: TeamMember) {
+    await run("Team member removed", async () => {
+      await api(`/teams/${selectedTeamId}/members/${member.user_id}`, { method: "DELETE" });
+      setTeamMembers((current) => current.filter((row) => row.id !== member.id));
     });
   }
 
@@ -546,14 +661,8 @@ export default function Page() {
               <input value={apiToken} onChange={(event) => setApiToken(event.target.value)} type="password" />
             </label>
             <label>
-              Console role
-              <select value={projectRole} onChange={(event) => setProjectRole(event.target.value as ProjectRole)}>
-                {roleOptions.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </select>
+              Project access
+              <input value={projectRole} readOnly />
             </label>
             <div className="splitFields">
               <label>
@@ -561,6 +670,7 @@ export default function Page() {
                 <input value={projectName} onChange={(event) => setProjectName(event.target.value)} />
               </label>
               <button onClick={() => void createProject()} disabled={busy !== null}>
+                <Plus size={16} />
                 New
               </button>
             </div>
@@ -640,6 +750,145 @@ export default function Page() {
           </div>
         </section>
 
+        <section className="panel accessPanel">
+          <div className="panelHeader">
+            <div className="usageHeading">
+              <Users size={18} />
+              <h2>Access</h2>
+            </div>
+            <button className="ghost" onClick={() => void loadAccess()} disabled={!projectId || busy !== null || !canOwn}>
+              <RefreshCw size={15} />
+              Load
+            </button>
+          </div>
+          <div className="accessGrid">
+            <div className="accessColumn">
+              <h3>Project members</h3>
+              <div className="accessForm">
+                <select value={principalType} onChange={(event) => setPrincipalType(event.target.value as "user" | "team")}>
+                  <option value="user">User</option>
+                  <option value="team">Team</option>
+                </select>
+                {principalType === "user" ? (
+                  <input value={principalId} onChange={(event) => setPrincipalId(event.target.value)} placeholder="User email" />
+                ) : (
+                  <select value={principalId} onChange={(event) => setPrincipalId(event.target.value)}>
+                    <option value="">Select team</option>
+                    {teams.map((team) => (
+                      <option key={team.id} value={team.id}>{team.name}</option>
+                    ))}
+                  </select>
+                )}
+                <select value={membershipRole} onChange={(event) => setMembershipRole(event.target.value as MembershipRole)}>
+                  {membershipRoleOptions.map((role) => (
+                    <option key={role} value={role}>{role}</option>
+                  ))}
+                </select>
+                <button
+                  title="Grant project access"
+                  onClick={() => void grantProjectAccess()}
+                  disabled={!projectId || !principalId.trim() || busy !== null || !canOwn}
+                >
+                  <UserPlus size={16} />
+                  Grant
+                </button>
+              </div>
+              <div className="memberList">
+                {projectMembers.map((member) => (
+                  <div className="memberRow" key={member.id}>
+                    <div>
+                      <strong>{member.principal_name}</strong>
+                      <span>{member.principal_type}</span>
+                    </div>
+                    <span className="pill">{member.role}</span>
+                    <button
+                      className="iconButton reject"
+                      title="Remove project access"
+                      aria-label={`Remove ${member.principal_name}`}
+                      onClick={() => void revokeProjectAccess(member)}
+                      disabled={busy !== null || !canOwn}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+                {projectMembers.length === 0 ? <div className="emptyState">No memberships loaded</div> : null}
+              </div>
+            </div>
+
+            <div className="accessColumn">
+              <h3>Teams</h3>
+              <div className="teamCreateRow">
+                <input value={newTeamName} onChange={(event) => setNewTeamName(event.target.value)} placeholder="Team name" />
+                <button title="Create team" onClick={() => void createTeam()} disabled={!newTeamName.trim() || busy !== null}>
+                  <Plus size={16} />
+                  Create
+                </button>
+              </div>
+              <div className="teamSelectRow">
+                <select
+                  value={selectedTeamId}
+                  onChange={(event) => {
+                    setSelectedTeamId(event.target.value);
+                    setTeamMembers([]);
+                  }}
+                >
+                  <option value="">Select team</option>
+                  {teams.map((team) => (
+                    <option key={team.id} value={team.id}>{team.name} ({team.role})</option>
+                  ))}
+                </select>
+                <button
+                  className="ghost iconButton"
+                  title="Load team members"
+                  aria-label="Load team members"
+                  onClick={() => void loadTeamMembers()}
+                  disabled={!selectedTeamId || busy !== null}
+                >
+                  <RefreshCw size={15} />
+                </button>
+              </div>
+              <div className="accessForm teamAccessForm">
+                <input value={teamUserId} onChange={(event) => setTeamUserId(event.target.value)} placeholder="User email" />
+                <select value={teamMemberRole} onChange={(event) => setTeamMemberRole(event.target.value as MembershipRole)}>
+                  {membershipRoleOptions.map((role) => (
+                    <option key={role} value={role}>{role}</option>
+                  ))}
+                </select>
+                <button
+                  title="Add team member"
+                  onClick={() => void grantTeamAccess()}
+                  disabled={!selectedTeamId || !teamUserId.trim() || busy !== null}
+                >
+                  <UserPlus size={16} />
+                  Add
+                </button>
+              </div>
+              <div className="memberList">
+                {teamMembers.map((member) => (
+                  <div className="memberRow" key={member.id}>
+                    <div>
+                      <strong>{member.email}</strong>
+                      <span>{member.user_id}</span>
+                    </div>
+                    <span className="pill">{member.role}</span>
+                    <button
+                      className="iconButton reject"
+                      title="Remove team member"
+                      aria-label={`Remove ${member.email}`}
+                      onClick={() => void removeTeamMember(member)}
+                      disabled={busy !== null}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+                {teamMembers.length === 0 ? <div className="emptyState">No team members loaded</div> : null}
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="bottomGrid">
           <div className="panel">
             <div className="panelHeader">
@@ -688,7 +937,7 @@ export default function Page() {
             </div>
           </div>
 
-          <div className="panel">
+          <div className="panel outputPanel">
             <div className="panelHeader">
               <h2>Outputs</h2>
               <div className="buttonRow compact">

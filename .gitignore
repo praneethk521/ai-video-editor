@@ -18,4 +18,4 @@ media/
 outputs/
 *.sqlite3
 *.db
-
+*.tsbuildinfo

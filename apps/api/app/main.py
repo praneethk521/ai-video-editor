@@ -9,8 +9,10 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import ORJSONResponse
 
 from app.api.internal import router as internal_router
+from app.api.identity import router as identity_router
 from app.api.projects import router as projects_router
-from app.core.config import settings
+from app.api.teams import router as teams_router
+from app.core.config import settings, validate_auth_configuration
 from app.core.logging import configure_logging
 from app.core.security import CurrentServiceToken, get_current_service_token, require_service_scope
 from app.core.tracing import configure_api_tracing, normalized_route
@@ -29,6 +31,7 @@ async def lifespan(_: FastAPI):
 
 
 def create_app() -> FastAPI:
+    validate_auth_configuration(settings)
     app = FastAPI(
         title="AI Video Editor API",
         version="0.1.0",
@@ -90,6 +93,8 @@ def create_app() -> FastAPI:
         return Response(content=payload, headers={"Content-Type": content_type})
 
     app.include_router(projects_router)
+    app.include_router(identity_router)
+    app.include_router(teams_router)
     app.include_router(internal_router)
     configure_api_tracing(app)
     return app

@@ -48,7 +48,7 @@ class User(Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    role: Mapped[str] = mapped_column(String(32), default="owner")
+    role: Mapped[str] = mapped_column(String(32), default="user")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -62,6 +62,7 @@ class Team(Base):
 
 class TeamMember(Base):
     __tablename__ = "team_members"
+    __table_args__ = (UniqueConstraint("team_id", "user_id", name="uq_team_member_team_user"),)
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
     team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"), index=True)
@@ -90,6 +91,8 @@ class ProjectMember(Base):
             "(user_id IS NOT NULL AND team_id IS NULL) OR (user_id IS NULL AND team_id IS NOT NULL)",
             name="ck_project_member_user_or_team",
         ),
+        UniqueConstraint("project_id", "user_id", name="uq_project_member_project_user"),
+        UniqueConstraint("project_id", "team_id", name="uq_project_member_project_team"),
     )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)

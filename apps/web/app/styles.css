@@ -165,6 +165,7 @@ nav a.active {
 
 h1,
 h2,
+h3,
 p {
   margin: 0;
 }
@@ -176,6 +177,10 @@ h1 {
 
 h2 {
   font-size: 16px;
+}
+
+h3 {
+  font-size: 14px;
 }
 
 p {
@@ -192,6 +197,83 @@ p {
 
 .usagePanel {
   margin-bottom: 18px;
+}
+
+.accessPanel {
+  margin-top: 16px;
+}
+
+.accessGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.accessColumn {
+  min-width: 0;
+  padding-right: 16px;
+}
+
+.accessColumn + .accessColumn {
+  border-left: 1px solid var(--line);
+  padding-left: 16px;
+  padding-right: 0;
+}
+
+.accessForm {
+  display: grid;
+  grid-template-columns: 100px minmax(130px, 1fr) 110px auto;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.teamCreateRow,
+.teamSelectRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.teamAccessForm {
+  grid-template-columns: minmax(130px, 1fr) 110px auto;
+}
+
+.memberList {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.memberRow {
+  min-height: 48px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 34px;
+  align-items: center;
+  gap: 8px;
+}
+
+.memberRow strong,
+.memberRow span {
+  overflow-wrap: anywhere;
+}
+
+.memberRow div {
+  display: grid;
+  gap: 2px;
+}
+
+.memberRow div span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+button.iconButton {
+  width: 34px;
+  min-height: 34px;
+  padding: 7px;
 }
 
 .usageHeading {
@@ -296,7 +378,7 @@ p {
 
 .bottomGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
   margin-top: 16px;
 }
@@ -484,8 +566,25 @@ p {
 @media (max-width: 1100px) {
   .controlGrid,
   .bottomGrid,
+  .accessGrid,
   .usageGrid {
     grid-template-columns: 1fr;
+  }
+
+  .accessColumn {
+    padding: 0;
+  }
+
+  .accessColumn + .accessColumn {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    margin-top: 18px;
+    padding: 18px 0 0;
+  }
+
+  .accessForm,
+  .teamAccessForm {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
@@ -514,7 +613,9 @@ p {
 
 @media (max-width: 560px) {
   .statusGrid,
-  .splitFields {
+  .splitFields,
+  .accessForm,
+  .teamAccessForm {
     grid-template-columns: 1fr;
   }
 
@@ -525,5 +626,15 @@ p {
 
   button {
     flex: 1;
+  }
+
+  .outputPanel .panelHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .outputPanel .buttonRow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

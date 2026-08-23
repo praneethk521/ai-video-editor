@@ -48,7 +48,7 @@ Status: In progress
 Status: In progress
 
 - SSO/VPN-protected n8n.
-- RBAC.
+- RBAC (complete).
 - Rate limits and quotas.
 - Cost controls per project.
 - Full Kubernetes/ECS deployment.

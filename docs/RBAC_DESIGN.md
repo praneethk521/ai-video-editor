@@ -9,7 +9,7 @@ RBAC is a P0 production hardening requirement. The API authenticates bearer toke
 - Keep internal worker callbacks authenticated and narrowly scoped.
 - Make authorization decisions auditable without logging private media locators or secrets.
 
-## Proposed Roles
+## Roles
 
 | Role | Scope | Capabilities |
 | --- | --- | --- |
@@ -49,19 +49,19 @@ Projects should remain owned by a user or team. A user receives access through d
 | Analysis provider health/metrics | `operator` or `admin` |
 | Platform Prometheus metrics | global `metrics` service token or `admin`/`internal`/`orchestrator` super-scope |
 
-## Enforcement Plan
+## Enforcement
 
-1. Add membership tables and migrations.
-2. Expand `CurrentUser` to include role claims or load memberships from the database.
-3. Replace owner-only checks with `require_project_role(project_id, user, minimum_role)`.
-4. Add service-token checks for internal endpoints.
-5. Include authorization outcomes in audit logs with role and project ID only.
-6. Add tests for each endpoint group and for cross-project denial.
-7. Update dashboard behavior to hide actions the current role cannot execute.
+1. Membership tables and migrations model direct users, teams, and workload tokens.
+2. OIDC tokens are validated against deployment trust settings and mapped to stable local users.
+3. Project endpoints resolve owner, direct, team, deployment-admin, or scoped-orchestrator roles.
+4. Internal endpoints require stored service tokens with project and operation scopes.
+5. Authorization outcomes are audited with bounded identifiers and roles only.
+6. Allow and deny tests cover human roles, cross-project access, workload scopes, and membership administration.
+7. The dashboard derives the effective role from the API and gates controls accordingly.
 
-The draft schema lives in `apps/api/migrations/002_rbac.sql` and matching SQLAlchemy models. User-facing project authorization is enforced through `apps/api/app/services/authorization.py`. Internal callbacks now use scoped service-token checks in `apps/api/app/core/security.py` and `apps/api/app/api/internal.py`; the legacy API token bridge remains for local smoke workflows while deployments move to stored service tokens. Project authorization decisions emit `authorization.project` audit rows, and the dashboard includes role-aware control gating for viewer, reviewer, operator, owner, and admin checks.
+The schema lives in `apps/api/migrations/002_rbac.sql` and `004_oidc_user_roles.sql` with matching SQLAlchemy models. User-facing project authorization is enforced through `apps/api/app/services/authorization.py`; internal callbacks use scoped service-token checks in `apps/api/app/core/security.py` and `apps/api/app/api/internal.py`. The shared API token remains available only for explicit local workflows. Project and team authorization decisions emit audit rows, and the dashboard uses server-derived roles for viewer, reviewer, operator, owner, and admin controls.
 
-The remaining production slice is to validate user identities through the deployment OIDC provider, add owner-only project and team membership administration endpoints, remove the legacy single-user bridge outside local mode, and complete allow/deny matrix coverage for every endpoint group.
+Production configuration and workload-token provisioning are documented in `docs/RBAC_DEPLOYMENT.md`.
 
 ## Audit Requirements
 

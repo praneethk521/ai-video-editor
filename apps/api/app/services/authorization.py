@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.security import CurrentUser
-from app.models.entities import Project, ProjectMember, ProjectStatus, TeamMember
+from app.models.entities import Project, ProjectMember, ProjectStatus, Team, TeamMember
 
 ROLE_RANKS = {
     "viewer": 10,
@@ -34,6 +34,10 @@ def weaker_role(left: str | None, right: str | None) -> str | None:
 def project_role_for_user(db: Session, *, project: Project, user: CurrentUser) -> str | None:
     if user.role == "admin":
         return "admin"
+    if user.service_scope == "orchestrator":
+        if user.project_id is None or user.project_id == project.id:
+            return "operator"
+        return None
     if project.owner_user_id == user.id:
         return "owner"
 
@@ -55,10 +59,23 @@ def project_role_for_user(db: Session, *, project: Project, user: CurrentUser) -
     return best_role
 
 
+def team_role_for_user(db: Session, *, team: Team, user: CurrentUser) -> str | None:
+    if user.role == "admin":
+        return "admin"
+    return db.query(TeamMember.role).filter(TeamMember.team_id == team.id, TeamMember.user_id == user.id).scalar()
+
+
 def require_project_role(db: Session, *, project: Project, user: CurrentUser, minimum_role: str) -> str:
     if project.status == ProjectStatus.deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
     actual_role = project_role_for_user(db, project=project, user=user)
     if not role_allows(actual_role, minimum_role):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="insufficient project role")
+    return actual_role or ""
+
+
+def require_team_role(db: Session, *, team: Team, user: CurrentUser, minimum_role: str) -> str:
+    actual_role = team_role_for_user(db, team=team, user=user)
+    if not role_allows(actual_role, minimum_role):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="insufficient team role")
     return actual_role or ""

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
@@ -15,6 +16,60 @@ class ProjectRead(BaseModel):
     id: str
     name: str
     status: str
+
+
+class CurrentUserRead(BaseModel):
+    id: str
+    email: str
+    role: str
+
+
+MembershipRole = Literal["viewer", "reviewer", "operator", "owner"]
+
+
+class MembershipRoleUpdate(BaseModel):
+    role: MembershipRole
+
+
+class UserMembershipRoleUpdate(MembershipRoleUpdate):
+    email: str = Field(min_length=3, max_length=255)
+
+
+class ProjectMembershipRead(BaseModel):
+    id: str
+    principal_type: Literal["user", "team"]
+    principal_id: str
+    principal_name: str
+    role: MembershipRole
+
+
+class ProjectMembershipsResponse(BaseModel):
+    members: list[ProjectMembershipRead]
+
+
+class TeamCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+
+
+class TeamRead(BaseModel):
+    id: str
+    name: str
+    role: str
+
+
+class TeamsResponse(BaseModel):
+    teams: list[TeamRead]
+
+
+class TeamMemberRead(BaseModel):
+    id: str
+    user_id: str
+    email: str
+    role: MembershipRole
+
+
+class TeamMembersResponse(BaseModel):
+    members: list[TeamMemberRead]
 
 
 class ConnectDriveRequest(BaseModel):
@@ -94,6 +149,7 @@ class RenderResponse(BaseModel):
 class ProjectStatusResponse(BaseModel):
     project_id: str
     status: str
+    role: str
     media_count: int
     render_jobs: list[dict]
 

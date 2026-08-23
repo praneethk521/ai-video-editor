@@ -11,6 +11,17 @@ class Settings(BaseSettings):
 
     app_env: str = "local"
     api_token: str = Field(default="dev-only-token", repr=False)
+    user_auth_mode: Literal["local_bearer", "oidc"] = "local_bearer"
+    legacy_service_token_enabled: bool = True
+    oidc_issuer_url: str = ""
+    oidc_audience: str = ""
+    oidc_jwks_url: str = ""
+    oidc_algorithms: str = "RS256"
+    oidc_subject_claim: str = "sub"
+    oidc_email_claim: str = "email"
+    oidc_role_claim: str = "role"
+    oidc_admin_role: str = "admin"
+    oidc_leeway_seconds: int = Field(default=30, ge=0, le=300)
     database_url: str = "sqlite+pysqlite:///./local.sqlite3"
     redis_url: str = "redis://localhost:6379/0"
     render_queue_backend: str = "rq"
@@ -80,6 +91,32 @@ class Settings(BaseSettings):
     s3_region: str = "us-east-1"
     s3_prefix: str = "ai-video-editor/outputs"
     media_encryption_kms_key_id: str = ""
+
+
+def validate_auth_configuration(value: Settings) -> None:
+    if value.user_auth_mode == "oidc":
+        missing = [
+            name
+            for name, configured in {
+                "OIDC_ISSUER_URL": value.oidc_issuer_url,
+                "OIDC_AUDIENCE": value.oidc_audience,
+                "OIDC_JWKS_URL": value.oidc_jwks_url,
+            }.items()
+            if not configured.strip()
+        ]
+        if missing:
+            raise RuntimeError(f"OIDC authentication requires: {', '.join(missing)}")
+        algorithms = {algorithm.strip() for algorithm in value.oidc_algorithms.split(",") if algorithm.strip()}
+        allowed_algorithms = {"ES256", "ES384", "ES512", "PS256", "PS384", "PS512", "RS256", "RS384", "RS512"}
+        if not algorithms or algorithms - allowed_algorithms:
+            raise RuntimeError("OIDC_ALGORITHMS must contain only approved asymmetric algorithms")
+    if value.app_env.lower() == "production":
+        if value.user_auth_mode != "oidc":
+            raise RuntimeError("production requires USER_AUTH_MODE=oidc")
+        if value.legacy_service_token_enabled:
+            raise RuntimeError("production requires LEGACY_SERVICE_TOKEN_ENABLED=false")
+        if not value.oidc_issuer_url.startswith("https://") or not value.oidc_jwks_url.startswith("https://"):
+            raise RuntimeError("production OIDC issuer and JWKS URLs must use HTTPS")
 
 
 settings = Settings()

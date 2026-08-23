@@ -18,6 +18,8 @@ Use this checklist before tagging or deploying the current MVP slice. This is an
 - Secret scanning and push protection are enabled.
 - No `.env`, local databases, source media, staged renders, delivered outputs, OAuth tokens, or provider credentials are committed.
 - `TOKEN_ENCRYPTION_KEY`, API tokens, OAuth client secrets, cloud credentials, and n8n credentials are stored outside the repository.
+- Production user authentication validates OIDC issuer, audience, signature, algorithms, expiration, and stable identity claims.
+- Workers, n8n, and Prometheus use separate stored service tokens; the local shared-token bridge is disabled in production.
 - Google Drive ingestion uses read-only scope unless Drive output delivery is explicitly enabled.
 - Drive output folders, S3 buckets, and local private delivery roots are access-controlled and private.
 
@@ -47,12 +49,11 @@ Use this checklist before tagging or deploying the current MVP slice. This is an
 
 ## Known Production Gaps
 
-- RBAC is not complete.
-- Rate limits and per-project quotas are not complete.
 - SSO/VPN protection for n8n is deployment-owned.
 - Full production renderer hardening still needs real workload tuning.
 - Provider-native deletion for Drive and S3 retention cleanup is not automated by the API.
 - Full Kubernetes/ECS production deployment remains a starter path, not a locked reference architecture.
+- Backup/restore, security review, and load testing still require deployment evidence.
 - Branch protection settings must be applied in GitHub; this repository only documents them.
 
 ## Release Decision

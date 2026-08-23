@@ -25,7 +25,7 @@ docker compose -f infra/docker/docker-compose.yml up --build
 ```
 
 3. Open the API docs at `http://localhost:8000/docs`.
-4. Use the bearer token from `API_TOKEN` for all API calls.
+4. In local mode, use the bearer token from `API_TOKEN` for API and internal smoke calls.
 
 ## API Slice
 
@@ -76,6 +76,10 @@ Create this repository and enable:
 - GitHub secret scanning and push protection.
 - Dependabot alerts and updates.
 - GitHub Actions OIDC for cloud deploy credentials.
+
+## Production identity
+
+Set `USER_AUTH_MODE=oidc`, configure the issuer, audience, JWKS URL, and claim names, then set `LEGACY_SERVICE_TOKEN_ENABLED=false`. People authenticate with provider JWTs; workers, n8n, and Prometheus use separate stored service tokens. See `docs/RBAC_DEPLOYMENT.md` for token provisioning and rollout validation.
 
 For public repositories, keep using `.env.example` only and never commit source media, rendered outputs, local databases, or provider credentials. See `docs/SECURITY_CHECKLIST.md` for the full checklist and `docs/BRANCH_PROTECTION.md` for required checks.
 

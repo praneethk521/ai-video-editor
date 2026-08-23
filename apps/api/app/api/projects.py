@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import CurrentUser, get_current_user
+from app.core.security import CurrentUser, get_current_human_user, get_current_user
 from app.db.session import get_db
-from app.models.entities import MediaAsset, OutputVideo, Project, ProjectStatus, RenderJob
+from app.models.entities import MediaAsset, OutputVideo, Project, ProjectMember, ProjectStatus, RenderJob, Team, User
 from app.schemas.api import (
     AnalyzeResponse,
     AnalysisResultsResponse,
@@ -18,12 +18,16 @@ from app.schemas.api import (
     IngestRequest,
     IngestResponse,
     OutputResponse,
+    OutputDeliverRequest,
     OutputRetentionCleanupRequest,
     OutputRetentionCleanupResponse,
     OutputRetentionReportResponse,
     PlanRegenerateRequest,
     PlanReviewRequest,
+    MembershipRoleUpdate,
     ProjectCreate,
+    ProjectMembershipRead,
+    ProjectMembershipsResponse,
     ProjectRead,
     ProjectStatusResponse,
     ProjectUsageResponse,
@@ -31,13 +35,14 @@ from app.schemas.api import (
     RenderResponse,
     TimelinePlanRead,
     TimelinePlansResponse,
+    UserMembershipRoleUpdate,
 )
 from app.services.audit import audit
 from app.services.analysis_providers import AnalysisProviderError
 from app.services.authorization import project_role_for_user, role_allows
 from app.services.media import complete_drive_oauth, create_drive_connection, create_media_asset, sync_drive_folder
 from app.services.metrics import record_workflow_event
-from app.services.output_delivery import cleanup_due_delivered_output
+from app.services.output_delivery import cleanup_due_delivered_output, deliver_output_video, record_output_delivery_failure
 from app.services.planning import (
     analyze_and_plan,
     approve_timeline_plan,
@@ -134,7 +139,7 @@ def create_project(
     payload: ProjectCreate,
     request: Request,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(get_current_human_user),
 ):
     project = Project(name=payload.name, owner_user_id=user.id)
     db.add(project)
@@ -507,9 +512,60 @@ def project_status(
     return ProjectStatusResponse(
         project_id=project.id,
         status=project.status.value,
+        role=project_role_for_user(db, project=project, user=user) or "viewer",
         media_count=media_count,
         render_jobs=[{"id": job.id, "variant": job.variant, "status": job.status.value} for job in jobs],
     )
+
+
+@router.post("/{project_id}/outputs/{output_video_id}/deliver", status_code=status.HTTP_204_NO_CONTENT)
+def deliver_project_output(
+    project_id: str,
+    output_video_id: str,
+    payload: OutputDeliverRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="operator", request=request, requested_action="output.delivery.execute"
+    )
+    output = db.get(OutputVideo, output_video_id)
+    if output is None or output.project_id != project.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="output video not found")
+    try:
+        output = deliver_output_video(db, output_video_id=output.id, target=payload.target)
+    except ValueError as exc:
+        failed_output = record_output_delivery_failure(
+            db,
+            output_video_id=output.id,
+            target=payload.target,
+            error_message=str(exc),
+            phase="manual_delivery",
+        )
+        if failed_output is not None:
+            audit(
+                db,
+                user_id=user.id,
+                project_id=project.id,
+                action="output.delivery.failed",
+                correlation_id=request.state.correlation_id,
+                metadata={"output_video_id": failed_output.id, "target": failed_output.delivery_target},
+            )
+            db.commit()
+        record_workflow_event("delivery", "failed")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    audit(
+        db,
+        user_id=user.id,
+        project_id=project.id,
+        action="output.delivery.completed",
+        correlation_id=request.state.correlation_id,
+        metadata={"output_video_id": output.id, "target": output.delivery_target, "status": output.delivery_status},
+    )
+    db.commit()
+    record_workflow_event("delivery", "succeeded")
+    return None
 
 
 @router.get("/{project_id}/outputs", response_model=OutputResponse)
@@ -631,6 +687,240 @@ def delete_project(
     )
     project.status = ProjectStatus.deleted
     audit(db, user_id=user.id, project_id=project_id, action="project.deleted", correlation_id=request.state.correlation_id)
+    db.commit()
+    return None
+
+
+@router.get("/{project_id}/members", response_model=ProjectMembershipsResponse)
+def list_project_memberships(
+    project_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="owner", request=request, requested_action="project.memberships.read"
+    )
+    members = []
+    for membership in db.query(ProjectMember).filter(ProjectMember.project_id == project.id).all():
+        if membership.user_id is not None:
+            member_user = db.get(User, membership.user_id)
+            if member_user is None:
+                continue
+            members.append(
+                ProjectMembershipRead(
+                    id=membership.id,
+                    principal_type="user",
+                    principal_id=member_user.id,
+                    principal_name=member_user.email,
+                    role=membership.role,
+                )
+            )
+        elif membership.team_id is not None:
+            team = db.get(Team, membership.team_id)
+            if team is None:
+                continue
+            members.append(
+                ProjectMembershipRead(
+                    id=membership.id,
+                    principal_type="team",
+                    principal_id=team.id,
+                    principal_name=team.name,
+                    role=membership.role,
+                )
+            )
+    return ProjectMembershipsResponse(members=members)
+
+
+@router.put("/{project_id}/members/users/{member_user_id}", response_model=ProjectMembershipRead)
+def upsert_project_user_membership(
+    project_id: str,
+    member_user_id: str,
+    payload: MembershipRoleUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="owner", request=request, requested_action="project.membership.user.write"
+    )
+    member_user = db.get(User, member_user_id)
+    if member_user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
+    return save_project_user_membership(
+        db,
+        project=project,
+        member_user=member_user,
+        role=payload.role,
+        user=user,
+        correlation_id=request.state.correlation_id,
+    )
+
+
+@router.put("/{project_id}/members/users", response_model=ProjectMembershipRead)
+def upsert_project_user_membership_by_email(
+    project_id: str,
+    payload: UserMembershipRoleUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="owner", request=request, requested_action="project.membership.user.write"
+    )
+    member_user = db.query(User).filter(User.email == payload.email.strip().lower()).one_or_none()
+    if member_user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
+    return save_project_user_membership(
+        db,
+        project=project,
+        member_user=member_user,
+        role=payload.role,
+        user=user,
+        correlation_id=request.state.correlation_id,
+    )
+
+
+def save_project_user_membership(
+    db: Session,
+    *,
+    project: Project,
+    member_user: User,
+    role: str,
+    user: CurrentUser,
+    correlation_id: str,
+) -> ProjectMembershipRead:
+    membership = (
+        db.query(ProjectMember)
+        .filter(ProjectMember.project_id == project.id, ProjectMember.user_id == member_user.id)
+        .one_or_none()
+    )
+    if membership is None:
+        membership = ProjectMember(project_id=project.id, user_id=member_user.id, role=role)
+        db.add(membership)
+    else:
+        membership.role = role
+    db.flush()
+    audit(
+        db,
+        user_id=user.id,
+        project_id=project.id,
+        action="project.membership.user.updated",
+        correlation_id=correlation_id,
+        metadata={"member_user_id": member_user.id, "role": role},
+    )
+    db.commit()
+    return ProjectMembershipRead(
+        id=membership.id,
+        principal_type="user",
+        principal_id=member_user.id,
+        principal_name=member_user.email,
+        role=membership.role,
+    )
+
+
+@router.delete("/{project_id}/members/users/{member_user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project_user_membership(
+    project_id: str,
+    member_user_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="owner", request=request, requested_action="project.membership.user.delete"
+    )
+    membership = (
+        db.query(ProjectMember)
+        .filter(ProjectMember.project_id == project.id, ProjectMember.user_id == member_user_id)
+        .one_or_none()
+    )
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project membership not found")
+    db.delete(membership)
+    audit(
+        db,
+        user_id=user.id,
+        project_id=project.id,
+        action="project.membership.user.deleted",
+        correlation_id=request.state.correlation_id,
+        metadata={"member_user_id": member_user_id},
+    )
+    db.commit()
+    return None
+
+
+@router.put("/{project_id}/members/teams/{team_id}", response_model=ProjectMembershipRead)
+def upsert_project_team_membership(
+    project_id: str,
+    team_id: str,
+    payload: MembershipRoleUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="owner", request=request, requested_action="project.membership.team.write"
+    )
+    team = db.get(Team, team_id)
+    if team is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="team not found")
+    membership = (
+        db.query(ProjectMember)
+        .filter(ProjectMember.project_id == project.id, ProjectMember.team_id == team.id)
+        .one_or_none()
+    )
+    if membership is None:
+        membership = ProjectMember(project_id=project.id, team_id=team.id, role=payload.role)
+        db.add(membership)
+    else:
+        membership.role = payload.role
+    db.flush()
+    audit(
+        db,
+        user_id=user.id,
+        project_id=project.id,
+        action="project.membership.team.updated",
+        correlation_id=request.state.correlation_id,
+        metadata={"team_id": team.id, "role": payload.role},
+    )
+    db.commit()
+    return ProjectMembershipRead(
+        id=membership.id,
+        principal_type="team",
+        principal_id=team.id,
+        principal_name=team.name,
+        role=membership.role,
+    )
+
+
+@router.delete("/{project_id}/members/teams/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project_team_membership(
+    project_id: str,
+    team_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = get_project_for_role_or_404(
+        db, project_id, user, minimum_role="owner", request=request, requested_action="project.membership.team.delete"
+    )
+    membership = (
+        db.query(ProjectMember)
+        .filter(ProjectMember.project_id == project.id, ProjectMember.team_id == team_id)
+        .one_or_none()
+    )
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project membership not found")
+    db.delete(membership)
+    audit(
+        db,
+        user_id=user.id,
+        project_id=project.id,
+        action="project.membership.team.deleted",
+        correlation_id=request.state.correlation_id,
+        metadata={"team_id": team_id},
+    )
     db.commit()
     return None
 

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-video-auth-settings
+data:
+  APP_ENV: production
+  USER_AUTH_MODE: oidc
+  LEGACY_SERVICE_TOKEN_ENABLED: "false"
+  OIDC_ISSUER_URL: https://identity.example.com/
+  OIDC_AUDIENCE: ai-video-editor
+  OIDC_JWKS_URL: https://identity.example.com/.well-known/jwks.json
+  OIDC_ALGORITHMS: RS256
+  OIDC_SUBJECT_CLAIM: sub
+  OIDC_EMAIL_CLAIM: email
+  OIDC_ROLE_CLAIM: role
+  OIDC_ADMIN_ROLE: admin
+  OIDC_LEEWAY_SECONDS: "30"

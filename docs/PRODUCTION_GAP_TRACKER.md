@@ -4,7 +4,7 @@ This tracker captures remaining M4 hardening work before treating the platform a
 
 | Area | Priority | Status | Acceptance Signal |
 | --- | --- | --- | --- |
-| RBAC | P0 | In progress | Roles restrict project, output, audit, and internal operations by user/team. |
+| RBAC | P0 | Complete | Validated OIDC users, scoped orchestrators/workers, owner-managed direct/team membership, audited policy checks, and role-matrix tests protect project operations. |
 | Rate limits and quotas | P0 | Complete | Shared Redis windows and atomic database quotas reject abusive or runaway requests by caller and project across API replicas. |
 | Cost controls | P0 | Complete | Analysis, render, delivered storage, delivery attempts, and estimated provider spend are tracked and capped per project with operator summaries. |
 | n8n access control | P0 | Deployment-owned | n8n is behind SSO, VPN, or private network access with encrypted credentials. |

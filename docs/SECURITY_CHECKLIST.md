@@ -51,7 +51,9 @@
 ## Runtime
 
 - Require authentication on every endpoint.
-- Add RBAC before multi-user production rollout.
+- Use OIDC for people and stored, scoped service tokens for workloads in production.
+- Keep `LEGACY_SERVICE_TOKEN_ENABLED=false` in production.
+- Review project and team membership audit events during access investigations.
 - Add rate limits and cost quotas.
 - Run workers with no unnecessary Linux capabilities.
 - Use read-only filesystems and temp volumes with size limits.

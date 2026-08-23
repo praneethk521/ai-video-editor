@@ -22,6 +22,8 @@ spec:
           envFrom:
             - secretRef:
                 name: ai-video-api-secrets
+            - configMapRef:
+                name: ai-video-auth-settings
           env:
             - name: RATE_LIMIT_BACKEND
               value: redis
