@@ -927,7 +927,7 @@ def test_external_http_analysis_provider_uses_sanitized_metadata(client, auth_he
 
     plans = client.get(f"/projects/{project['id']}/plans", headers=auth_headers)
     assert "talking head" in plans.json()["plans"][0]["plan"]["strategy"]["hook"]
-    assert plans.json()["plans"][0]["plan"]["tracks"][0]["clips"][0]["effect"] in {"match_cut", "subject_push", "subtle_zoom"}
+    assert plans.json()["plans"][0]["plan"]["tracks"][0]["clips"][0]["effect"] == "cut"
 
     after_metrics = client.get("/internal/analysis-provider/metrics", headers=auth_headers).json()["providers"][
         "external-http-analysis-v1"

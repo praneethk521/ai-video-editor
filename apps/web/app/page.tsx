@@ -3,6 +3,7 @@
 import {
   CheckCircle2,
   Clapperboard,
+  Download,
   FileVideo,
   FolderSync,
   Gauge,
@@ -18,7 +19,7 @@ import {
   Users,
   XCircle
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type TimelineClip = {
   asset_id: string;
@@ -35,6 +36,11 @@ type TimelineTrack = {
 };
 
 type TimelinePlanBody = {
+  selection?: {
+    target_seconds: number;
+    duration_seconds: number;
+    decisions: Array<{ asset_id: string; status: string; reasons: string[]; score: number }>;
+  };
   tracks?: TimelineTrack[];
   strategy?: {
     hook?: string;
@@ -238,6 +244,8 @@ export default function Page() {
   const [projectId, setProjectId] = useState("");
   const [status, setStatus] = useState<ProjectStatus | null>(null);
   const [plans, setPlans] = useState<TimelinePlan[]>([]);
+  const [landscapeTarget, setLandscapeTarget] = useState(90);
+  const [portraitTarget, setPortraitTarget] = useState(30);
   const [outputs, setOutputs] = useState<OutputVideo[]>([]);
   const [retentionRows, setRetentionRows] = useState<OutputRetentionRow[]>([]);
   const [cleanupRows, setCleanupRows] = useState<OutputCleanupRow[]>([]);
@@ -256,6 +264,50 @@ export default function Page() {
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState("");
+  const [previews, setPreviews] = useState<Record<string, string>>({});
+  const previewUrls = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    const existingProject = new URLSearchParams(window.location.search).get("project");
+    if (existingProject) setProjectId(existingProject);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      Object.values(previewUrls.current).forEach((url) => URL.revokeObjectURL(url));
+      previewUrls.current = {};
+    };
+  }, [projectId, apiToken, apiBase]);
+
+  useEffect(() => {
+    setPreviews({});
+  }, [projectId, apiToken, apiBase]);
+
+  useEffect(() => {
+    if (!projectId || !apiToken || status?.status !== "rendering") return;
+    let cancelled = false;
+    let pending = false;
+    const timer = window.setInterval(async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const next = await api<ProjectStatus>(`/projects/${projectId}/status`);
+        if (cancelled) return;
+        setStatus(next);
+        if (next.status !== "rendering") {
+          const response = await api<{ outputs: OutputVideo[] }>(`/projects/${projectId}/outputs`);
+          if (!cancelled) setOutputs(response.outputs);
+        }
+      } catch (error) {
+        if (!cancelled) pushLog({ tone: "error", message: String(error) });
+      } finally {
+        pending = false;
+      }
+    }, 2000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [projectId, apiToken, apiBase, status?.status]);
 
   const approvedCount = useMemo(() => plans.filter((plan) => plan.status === "approved").length, [plans]);
   const draftCount = useMemo(() => plans.filter((plan) => plan.status === "draft").length, [plans]);
@@ -277,7 +329,7 @@ export default function Page() {
       ...init,
       headers: {
         Authorization: `Bearer ${apiToken}`,
-        "Content-Type": "application/json",
+        ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
         ...(init.headers ?? {})
       }
     });
@@ -318,7 +370,7 @@ export default function Page() {
 
   async function refreshOverview() {
     await run("Project overview refreshed", async () => {
-      await Promise.all([refreshStatus(), refreshUsage()]);
+      await Promise.all([refreshStatus(), refreshUsage(), refreshPlans(), refreshOutputs()]);
     });
   }
 
@@ -366,6 +418,34 @@ export default function Page() {
     });
   }
 
+  async function uploadFiles() {
+    await run("Media uploaded and scanned", async () => {
+      for (let index = 0; index < selectedFiles.length; index++) {
+        setUploadProgress(`${index + 1} / ${selectedFiles.length}: ${selectedFiles[index].name}`);
+        const body = new FormData();
+        body.append("file", selectedFiles[index]);
+        await api(`/projects/${projectId}/upload`, { method: "POST", body });
+        setSelectedFiles((current) => current.filter((file) => file !== selectedFiles[index]));
+        await refreshStatus();
+      }
+      setUploadProgress("");
+    });
+  }
+
+  async function previewOutput(output: OutputVideo) {
+    await run("Video ready", async () => {
+      if (!apiToken.trim()) throw new Error("API token is required");
+      const response = await fetch(`${apiBase.replace(/\/$/, "")}/projects/${projectId}/outputs/${output.id}/download`, {
+        headers: { Authorization: `Bearer ${apiToken}` }
+      });
+      if (!response.ok) throw new Error(await response.text());
+      const url = URL.createObjectURL(await response.blob());
+      if (previewUrls.current[output.id]) URL.revokeObjectURL(previewUrls.current[output.id]);
+      previewUrls.current[output.id] = url;
+      setPreviews({ ...previewUrls.current });
+    });
+  }
+
   async function syncDrive() {
     await run("Drive folder synced", async () => {
       await api(`/projects/${projectId}/sync-drive`, { method: "POST" });
@@ -387,7 +467,8 @@ export default function Page() {
     await run("Plans regenerated", async () => {
       await api(`/projects/${projectId}/plans/regenerate`, {
         method: "POST",
-        body: JSON.stringify({ variants: ["youtube_16x9", "shorts_9x16"], notes: "Regenerated from dashboard review." })
+        body: JSON.stringify({ variants: ["youtube_16x9", "shorts_9x16"], notes: "Regenerated from dashboard review.",
+          landscape_target_seconds: landscapeTarget, portrait_target_seconds: portraitTarget })
       });
       await refreshPlans();
     });
@@ -564,7 +645,7 @@ export default function Page() {
         <header className="topbar">
           <div>
             <h1>Project Console</h1>
-            <p>Private Drive media, approved timelines, manual upload outputs.</p>
+            <p>Local workspace</p>
           </div>
           <div className="topActions">
             <button className="ghost" onClick={() => void refreshOverview()} disabled={!projectId || busy !== null || !canView}>
@@ -679,9 +760,19 @@ export default function Page() {
               <input value={projectId} onChange={(event) => setProjectId(event.target.value)} />
             </label>
             <label>
-              Drive folder URL
+              Google Drive folder URL (optional)
               <input value={folderUrl} onChange={(event) => setFolderUrl(event.target.value)} />
             </label>
+            <label>
+              Photos and videos
+              <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+                disabled={!projectId || busy !== null || !canOperate}
+                onChange={(event) => setSelectedFiles(Array.from(event.target.files ?? []))} />
+            </label>
+            <button onClick={() => void uploadFiles()} disabled={!projectId || !selectedFiles.length || busy !== null || !canOperate}>
+              <UploadCloud size={16} /> Upload {selectedFiles.length || ""}
+            </button>
+            {uploadProgress ? <span role="status" className="muted">{uploadProgress}</span> : null}
             <div className="buttonRow">
               <button className="ghost" onClick={() => void connectDrive()} disabled={!projectId || busy !== null || !canOperate}>
                 Connect
@@ -711,6 +802,12 @@ export default function Page() {
               </div>
             </div>
             <div className="planList">
+              <div className="splitFields">
+                <label>Landscape target (seconds)<input type="number" min={15} max={300} value={landscapeTarget}
+                  onChange={(event) => setLandscapeTarget(Number(event.target.value))} /></label>
+                <label>Vertical target (seconds)<input type="number" min={15} max={60} value={portraitTarget}
+                  onChange={(event) => setPortraitTarget(Number(event.target.value))} /></label>
+              </div>
               {plans.map((plan) => (
                 <article className="planCard" key={plan.id}>
                   <div className="planTopline">
@@ -721,13 +818,20 @@ export default function Page() {
                     <span className={`pill ${plan.status}`}>{plan.status}</span>
                   </div>
                   <div className="planMeta">
-                    <span>{Math.round(plan.confidence_score * 100)}% confidence</span>
+                    <span>{plan.plan.selection ? `${plan.plan.selection.duration_seconds}s / ${plan.plan.selection.target_seconds}s target` : `${Math.round(plan.confidence_score * 100)}% confidence`}</span>
                     <span>
                       {plan.plan.export?.width}x{plan.plan.export?.height}
                     </span>
                     <span>{plan.plan.export?.fps ?? 30} fps</span>
                   </div>
                   <p>{plan.plan.strategy?.hook ?? "Timeline strategy pending."}</p>
+                  {plan.plan.selection ? <details>
+                    <summary>Selection decisions ({plan.plan.selection.decisions.length})</summary>
+                    <ul className="selectionDecisions">{plan.plan.selection.decisions.map((decision, index) => (
+                      <li key={decision.asset_id}><strong>Media {index + 1}: {decision.status}</strong>
+                        <span>{decision.reasons.map((reason) => reason.replaceAll("_", " ")).join(", ")}</span></li>
+                    ))}</ul>
+                  </details> : null}
                   <textarea
                     value={reviewNotes[plan.id] ?? ""}
                     onChange={(event) => setReviewNotes((current) => ({ ...current, [plan.id]: event.target.value }))}
@@ -980,6 +1084,14 @@ export default function Page() {
                     <span className={`pill ${output.validation?.status ?? "pending"}`}>
                       {output.validation?.status ?? "pending validation"}
                     </span>
+                    <button className="ghost" onClick={() => void previewOutput(output)}
+                      disabled={busy !== null || !canView || output.validation?.status !== "passed"}>
+                      <Play size={16} /> Preview
+                    </button>
+                    {previews[output.id] ? <>
+                      <video className="outputPreview" src={previews[output.id]} controls preload="metadata" />
+                      <a href={previews[output.id]} download={`${output.variant}.mp4`}><Download size={16} /> Download MP4</a>
+                    </> : null}
                     <span className={`pill ${output.delivery?.status ?? "private_staging"}`}>
                       {output.delivery?.target ?? "delivery"} · {output.delivery?.status ?? "private staging"}
                     </span>

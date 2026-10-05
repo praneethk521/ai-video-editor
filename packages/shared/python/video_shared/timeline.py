@@ -17,13 +17,17 @@ class AssetSummary:
     subject_presence: str = "unknown"
     audio_quality: str = "unknown"
     tags: tuple[str, ...] = ()
+    source_start: float = 0.0
 
 
-def build_timeline_plan(project_id: str, assets: list[AssetSummary], variant: Variant) -> dict:
+def build_timeline_plan(project_id: str, assets: list[AssetSummary], variant: Variant, *, curated: bool = False) -> dict:
     if not assets:
         raise ValueError("at least one asset is required to build a timeline")
 
-    ranked = sorted(assets, key=lambda asset: asset.highlight_score, reverse=True)
+    limit = 100 if curated else 12
+    if len(assets) > limit:
+        raise ValueError(f"a montage supports at most {limit} media files")
+    ranked = list(assets)
     width, height = (1920, 1080) if variant == "youtube_16x9" else (1080, 1920)
     max_clip = 8.0 if variant == "youtube_16x9" else 3.0
     top_tags = sorted({tag for asset in ranked[:5] for tag in asset.tags})
@@ -32,19 +36,19 @@ def build_timeline_plan(project_id: str, assets: list[AssetSummary], variant: Va
     timeline_start = 0.0
     clips = []
 
-    for asset in ranked[:12]:
-        clip_len = min(max_clip, max(1.5, asset.duration_seconds))
-        crop_strategy = "face_subject" if asset.subject_presence != "unknown" else "center"
-        if variant == "shorts_9x16" and asset.orientation == "landscape":
-            crop_strategy = "blur_background"
+    for asset in ranked:
+        clip_len = min(max_clip, asset.duration_seconds)
+        if clip_len <= 0:
+            raise ValueError("source duration must be positive")
+        crop_strategy = "center"
         clips.append(
             {
                 "asset_id": asset.asset_id,
-                "start": 0,
-                "end": round(clip_len, 2),
+                "start": asset.source_start,
+                "end": round(asset.source_start + clip_len, 2),
                 "timeline_start": round(timeline_start, 2),
-                "effect": _effect_for_asset(variant, asset),
-                "caption": _caption_for_asset(asset),
+                "effect": "cut",
+                "caption": "",
                 "crop_strategy": crop_strategy,
             }
         )
@@ -56,8 +60,8 @@ def build_timeline_plan(project_id: str, assets: list[AssetSummary], variant: Va
         "version": 1,
         "confidence_score": round(min(0.95, 0.55 + len(clips) * 0.03), 2),
         "strategy": {
-            "hook": f"Open with the highest-scoring {primary_focus} moment in the first three seconds.",
-            "pacing": pacing,
+            "hook": f"A {primary_focus} montage in source order; no visual AI selection.",
+            "pacing": f"Hard cuts; {pacing}. Original clip audio; silent photos.",
             "title_ideas": _title_ideas(primary_focus, variant),
             "description": _description(primary_focus, top_tags),
             "hashtags": _hashtags(top_tags),

@@ -16,7 +16,8 @@ class WorkerSettings:
     output_storage_provider: str = os.getenv("OUTPUT_STORAGE_PROVIDER", "drive")
     require_embedded_subtitles: bool = os.getenv("REQUIRE_EMBEDDED_SUBTITLES", "false").lower() in {"1", "true", "yes"}
     fail_on_black_frames: bool = os.getenv("FAIL_ON_BLACK_FRAMES", "false").lower() in {"1", "true", "yes"}
-    render_dry_run: bool = os.getenv("RENDER_DRY_RUN", "true").lower() in {"1", "true", "yes"}
+    render_dry_run: bool = os.getenv("RENDER_DRY_RUN", "false").lower() in {"1", "true", "yes"}
+    media_source_root: str = os.getenv("MEDIA_SOURCE_ROOT", "/tmp/ai-video-editor/sources")
     metrics_port: int = int(os.getenv("WORKER_METRICS_PORT", "9100"))
     tracing_enabled: bool = os.getenv("TRACING_ENABLED", "false").lower() in {"1", "true", "yes"}
     otel_service_name: str = os.getenv("OTEL_SERVICE_NAME", "ai-video-editor-worker")

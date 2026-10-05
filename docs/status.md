@@ -1,8 +1,66 @@
 # Status
 
-Last updated: 2026-08-23
+Last updated: 2026-10-05
 
-## Completed
+## Authoritative Scope
+
+The app runs only on the owner's laptop. GitHub stores code, never media or
+credentials. Google Photos albums are the required primary source; Drive folders
+are different and optional. A curated short story, not an all-files montage, is
+the goal. See [PRD_TRIP_VIDEO.md](PRD_TRIP_VIDEO.md) for the complete contract.
+AWS, hosted websites, Kubernetes and cloud deployment are out of scope.
+
+## Active Progress
+
+| Gate | Status | Evidence / Remaining Work |
+| --- | --- | --- |
+| L1 Real local rendering | Working local baseline | Genuine HTTP uploads, ClamAV scans, Redis/RQ jobs, actual-source FFmpeg, original clip audio, private preview/download. JPEG/video color normalization and low-luma blue false-positive validation fixed. |
+| L2 Curation foundation | Implemented, limited | Local decoded-frame sharpness/exposure heuristics, exact/conservative near-duplicate grouping, bounded quality selection, sampled video start, reasons, target-duration regeneration, approval invalidation. Not a semantic model. |
+| L3 Google Photos | Not implemented | Google API research complete. OAuth + Picker sessions, pagination/download/staging, resume/revoke and real album consent still required. A Photos URL alone is not supported. |
+| L4 Local semantic model | Not implemented | Eye-state, occlusion, point-of-interest relevance, scene/event diversity and robust video highlight quality need a chosen local model and evaluation. Unknown fields stay unknown. |
+| L5 Selection review | Partial | Duration controls, decision reasons and plan approval exist. Thumbnails, duplicate comparison, per-item override/trim, and all-low-quality review remain. |
+| L6 Laptop acceptance | Partial | Yellowstone pipeline works; no real private Photos album or 500-file media workload tested. Phone formats/HDR, resumability/cancellation and disk limits remain. |
+
+## Current Validation
+
+- API suite: 85 passed. Worker suite: 13 passed, including real image/video/audio
+  rendering and black/corrupt-output rejection.
+- Ruff, TypeScript and Next.js production build pass. Desktop video decodes and
+  the selection/duration UI fits a 390px mobile viewport without horizontal overflow.
+- Latest real demo project: `47a3dfd7-56c7-43f7-8ac3-17912cd716cf`.
+- Real exports: 26s landscape, 21s vertical, H.264/AAC. Waterfall trim starts at
+  29.33s based on sampled technical quality. All six photos remain because the
+  small sample has no detected duplicate/quality exclusion and fits the budget.
+- Outputs, plans and report: ignored `outputs/Yellowstone/<project-id>/`.
+- Visual frame contact sheet confirms the six photos and waterfall. This is not
+  evidence of eye-state, landmark understanding, or subjective story quality.
+- Local source analysis never calls an external provider. Metadata-only legacy
+  providers remain for non-staged fixture/legacy paths; not Photos production support.
+- 500-candidate selection is unit-tested, not a measured 500-file import benchmark.
+- Git history: 53 commits scanned with Gitleaks; one reviewed example-placeholder
+  false positive narrowly fingerprint-allowlisted. No real secrets found.
+- Trivy working-tree secret scan: no findings. Staged changes are scanned before
+  check-in; CI now includes full-history Gitleaks as well.
+- Media and outputs remain gitignored. Docker context now excludes private data,
+  credentials, local databases and model caches as well.
+
+## Next Work (In Order)
+
+1. Implement Photos OAuth + Picker import and validate a real user-selected album.
+   Requires the owner's Google OAuth client setup and interactive consent; do not
+   reuse Drive credentials/scopes as Photos authorization or make albums public.
+2. Choose/evaluate a local vision model for eyes, portrait quality, scene meaning,
+   landmarks and highlights; add event diversity under the duration budget.
+3. Build thumbnail/duplicate review, include/exclude/pin and trim overrides;
+   preserve uncertain/low-quality memories for manual decisions.
+4. Queue/cache analysis, resume/cancel imports, enforce total disk quotas; test
+   phone formats, rotation/HDR and a large mixed album on this laptop.
+5. Finish local startup/backup/cleanup UX and owner-approved trip acceptance.
+
+## Historical Infrastructure Work
+
+The list below records previous implementation, not current release completion.
+Cloud deployment artifacts are retained as history but are not active work.
 
 - Created monorepo structure.
 - Added FastAPI API with authenticated project lifecycle endpoints.
@@ -104,7 +162,7 @@ Last updated: 2026-08-23
 - Added pinned GitHub Actions, working Python module test commands, Ruff gates, secret scanning, runtime image import checks, and Trivy image gates to CI.
 - Added a root security disclosure policy for the public repository.
 
-## Verification
+## Historical Verification (Before Local Curation)
 
 - API tests: passed locally (`65 passed`).
 - Worker tests: passed locally (`6 passed`).
@@ -121,6 +179,4 @@ Last updated: 2026-08-23
 - End-to-end telemetry check: a test span crossed the Collector into Jaeger with private URL and exception-message fields removed.
 - Grafana provisioning check: Prometheus and Jaeger data sources plus the nine-panel operations dashboard loaded successfully.
 
-## Next
-
-- Implement provider-native Drive/S3 retention deletion and reconciliation with auditable dry-run and failure handling.
+Current priorities are the L1-L6 laptop gates above, not deployment hardening.

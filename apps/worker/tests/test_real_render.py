@@ -1,0 +1,94 @@
+from __future__ import annotations
+
+import array
+import hashlib
+import shutil
+import subprocess
+from dataclasses import replace
+
+import pytest
+
+from app import render
+from app.render import VideoRenderer
+from app.validation import OutputValidationError, detect_black_frames
+from video_shared.timeline import AssetSummary, build_timeline_plan
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="real renderer test needs FFmpeg")
+@pytest.mark.parametrize("variant", ["youtube_16x9", "shorts_9x16"])
+def test_actual_images_video_and_audio_survive_render(tmp_path, monkeypatch, variant):
+    root = tmp_path / "sources"
+    source = root / "project-test"
+    source.mkdir(parents=True)
+
+    def ffmpeg(*args):
+        return subprocess.run(["ffmpeg", "-v", "error", "-y", *args], check=True, capture_output=True, timeout=60).stdout
+
+    photo = source / "photo.jpg"
+    video = source / "clip.mp4"
+    ffmpeg("-f", "lavfi", "-i", "color=red:s=160x90", "-frames:v", "1", str(photo))
+    ffmpeg("-f", "lavfi", "-i", "color=blue:s=160x90:r=30:d=0.6", "-f", "lavfi", "-i",
+           "sine=frequency=440:duration=0.6", "-c:v", "libx264", "-c:a", "aac", "-shortest", str(video))
+    sources = {name: {"relative_path": f"project-test/{path.name}", "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+               for name, path in (("photo", photo), ("video", video))}
+    monkeypatch.setattr(render, "settings", replace(render.settings, media_source_root=str(root)))
+    plan = build_timeline_plan("project-test", [AssetSummary("photo", 3), AssetSummary("video", 0.6)], variant)
+    result = VideoRenderer(tmp_path / "outputs").render(plan, sources=sources)
+    assert result.validation["status"] == "passed"
+    assert result.validation["signals"]["black_frames"]["detected"] is False
+    assert abs(result.validation["ffprobe"]["duration_seconds"] - 3.6) < 0.15
+
+    def pixel(at):
+        return ffmpeg("-ss", str(at), "-i", result.output_path, "-vf", "crop=2:2:iw/2:ih/2,scale=1:1",
+                      "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1")
+
+    red, blue = pixel(1), pixel(3.3)
+    assert red[0] > 180 and red[2] < 50
+    assert blue[2] > 180 and blue[0] < 50
+    sound = ffmpeg("-ss", "3.2", "-i", result.output_path, "-t", "0.2", "-vn", "-ac", "1", "-f", "s16le", "pipe:1")
+    samples = array.array("h", sound)
+    assert max(abs(sample) for sample in samples) > 500
+    assert not list((tmp_path / "outputs" / "project-test").glob("segments-*"))
+
+
+def test_missing_and_foreign_sources_fail_before_ffmpeg(tmp_path):
+    plan = build_timeline_plan("project-test", [AssetSummary("photo", 3)], "youtube_16x9")
+    renderer = VideoRenderer(tmp_path / "outputs")
+    with pytest.raises(ValueError, match="manifest"):
+        renderer.render(plan)
+    with pytest.raises(ValueError, match="missing or outside"):
+        renderer.render(plan, sources={"photo": {"relative_path": "../other-project/file", "sha256": "fake"}})
+    assert not list((tmp_path / "outputs").rglob("*.mp4"))
+
+
+def test_invalid_project_identifier_rejected(tmp_path):
+    plan = build_timeline_plan("../escape", [AssetSummary("photo", 3)], "youtube_16x9")
+    with pytest.raises(ValueError, match="storage identifier"):
+        VideoRenderer(tmp_path).render(plan)
+
+
+def test_short_video_not_extended_and_input_overflow_rejected():
+    plan = build_timeline_plan("project-test", [AssetSummary("short", 0.2)], "shorts_9x16")
+    assert plan["tracks"][0]["clips"][0]["end"] == 0.2
+    with pytest.raises(ValueError, match="at most 12"):
+        build_timeline_plan("project-test", [AssetSummary(str(i), 3) for i in range(13)], "shorts_9x16")
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="real renderer test needs FFmpeg")
+def test_truly_black_media_is_rejected(tmp_path, monkeypatch):
+    source = tmp_path / "sources" / "black-project"
+    source.mkdir(parents=True)
+    photo = source / "black.jpg"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=black:s=160x90",
+                    "-frames:v", "1", str(photo)], check=True, capture_output=True)
+    monkeypatch.setattr(render, "settings", replace(render.settings, media_source_root=str(source.parent)))
+    plan = build_timeline_plan("black-project", [AssetSummary("black", 3)], "youtube_16x9")
+    with pytest.raises(OutputValidationError):
+        VideoRenderer(tmp_path / "outputs").render(plan, sources={"black": {
+            "relative_path": "black-project/black.jpg", "sha256": hashlib.sha256(photo.read_bytes()).hexdigest()}})
+    assert not list((tmp_path / "outputs").rglob("*.mp4"))
+
+
+def test_failed_decode_is_not_a_pass(tmp_path, monkeypatch):
+    monkeypatch.setattr("app.validation.subprocess.run", lambda *args, **kwargs: subprocess.CompletedProcess([], 1, stderr="invalid data"))
+    assert detect_black_frames(tmp_path / "bad.mp4")["status"] == "failed"

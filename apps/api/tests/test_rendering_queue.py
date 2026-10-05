@@ -30,7 +30,7 @@ def test_dispatch_render_jobs_submits_rq_job(monkeypatch):
         {
             "func": "app.jobs.render_timeline_job",
             "args": ("job-1", {"variant": "youtube_16x9"}),
-            "kwargs": {"trace_context": {}},
+            "kwargs": {"trace_context": {}, "sources": {}},
             "timeout": 1800,
             "result_ttl": 86400,
             "failure_ttl": 86400,

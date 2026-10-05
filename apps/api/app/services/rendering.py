@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from fastapi import HTTPException
 from opentelemetry.propagate import inject
@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.tracing import operation_span
-from app.models.entities import OutputVideo, PlanStatus, Project, ProjectStatus, RenderJob, RenderStatus, TimelinePlan
+from app.models.entities import MediaAsset, OutputVideo, PlanStatus, Project, ProjectStatus, RenderJob, RenderStatus, TimelinePlan
 
 from pathlib import Path
 import sys
@@ -36,6 +36,7 @@ from video_shared import validate_private_locator  # noqa: E402
 class RenderQueueItem:
     render_job_id: str
     plan_json: dict
+    sources: dict = field(default_factory=dict)
 
 
 def enqueue_render_jobs(db: Session, *, project_id: str, variants: list[str]) -> list[RenderJob]:
@@ -69,7 +70,18 @@ def create_render_jobs(db: Session, *, project_id: str, variants: list[str]) -> 
         db.add(job)
         db.flush()
         jobs.append(job)
-        queue_items.append(RenderQueueItem(render_job_id=job.id, plan_json=plan.plan_json))
+        sources = {}
+        if settings.render_queue_backend != "database":
+            for track in plan.plan_json["tracks"]:
+                for clip in track["clips"]:
+                    asset = db.get(MediaAsset, clip["asset_id"])
+                    if asset is None or asset.project_id != project_id or asset.malware_scan_status != "clean":
+                        raise ValueError("timeline source is not authorized and clean")
+                    metadata = asset.metadata_json or {}
+                    if not metadata.get("relative_path") or not metadata.get("sha256"):
+                        raise ValueError("source is not staged locally; upload the media before rendering")
+                    sources[asset.id] = {"relative_path": metadata["relative_path"], "sha256": metadata["sha256"]}
+        queue_items.append(RenderQueueItem(render_job_id=job.id, plan_json=plan.plan_json, sources=sources))
     return jobs, queue_items
 
 
@@ -89,7 +101,7 @@ def dispatch_render_jobs(queue_items: list[RenderQueueItem]) -> None:
             queue.enqueue_call(
                 func="app.jobs.render_timeline_job",
                 args=(item.render_job_id, item.plan_json),
-                kwargs={"trace_context": trace_context},
+                kwargs={"trace_context": trace_context, "sources": item.sources},
                 timeout=settings.render_job_timeout_seconds,
                 result_ttl=86400,
                 failure_ttl=86400,
@@ -109,7 +121,13 @@ def mark_render_job_running(db: Session, *, render_job_id: str) -> RenderJob:
 
 def complete_render_job(db: Session, *, render_job_id: str, result) -> OutputVideo:
     job = get_render_job(db, render_job_id)
+    if (result.validation or {}).get("status") != "passed":
+        raise ValueError("only validated real renders may complete a job")
+    if result.variant != job.variant or result.file_size_bytes <= 0:
+        raise ValueError("render output does not match its job")
     private_locator = validate_private_locator(result.private_locator)
+    if private_locator.startswith("file://private/") and not private_locator.startswith(f"file://private/{job.project_id}/"):
+        raise ValueError("render output belongs to a different project")
     upload_package = result.upload_package or {}
     delivery_target = upload_package.get("delivery_target") or settings.output_storage_provider
     delivery_status = upload_package.get("delivery_status") or "private_staging"

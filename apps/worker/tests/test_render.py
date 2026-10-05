@@ -41,7 +41,7 @@ def test_renderer_validates_and_creates_private_output(tmp_path: Path):
         "export": {"width": 1080, "height": 1920, "fps": 30, "format": "mp4"},
     }
 
-    result = VideoRenderer(tmp_path).render(plan)
+    result = VideoRenderer(tmp_path).render(plan, dry_run=True)
     assert result.variant == "shorts_9x16"
     assert result.width == 1080
     assert Path(result.output_path).exists()
@@ -72,7 +72,7 @@ def test_render_timeline_returns_private_output_metadata():
         "export": {"width": 1920, "height": 1080, "fps": 30, "format": "mp4"},
     }
 
-    result = render_timeline(plan)
+    result = render_timeline(plan, dry_run=True)
     assert result["variant"] == "youtube_16x9"
     assert result["private_locator"] == "file://private/project-1/youtube_16x9.mp4"
     assert result["file_size_bytes"] > 0

@@ -10,6 +10,18 @@
     "variant": { "type": "string", "enum": ["youtube_16x9", "shorts_9x16"] },
     "version": { "type": "integer", "minimum": 1 },
     "confidence_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "selection": {
+      "type": "object",
+      "required": ["method", "target_seconds", "duration_seconds", "decisions", "limitations"],
+      "additionalProperties": false,
+      "properties": {
+        "method": { "const": "local_technical_quality_v1" },
+        "target_seconds": { "type": "number", "minimum": 1, "maximum": 300 },
+        "duration_seconds": { "type": "number", "minimum": 0, "maximum": 300 },
+        "decisions": { "type": "array", "maxItems": 500, "items": { "type": "object" } },
+        "limitations": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "strategy": {
       "type": "object",
       "additionalProperties": false,

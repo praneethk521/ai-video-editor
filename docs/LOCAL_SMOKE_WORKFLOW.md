@@ -1,5 +1,9 @@
 # Local Smoke Workflow
 
+This is a metadata/delivery simulation, not a playable video demo. It cannot
+verify that source photos or video clips are edited into an output. See
+[Trip Video Readiness](TRIP_VIDEO_READINESS.md) for the real renderer diagnostic.
+
 This workflow proves the private-media path from project creation through local private output delivery. It uses synthetic private locators and worker callbacks, so it does not require real source media, Google Drive write access, S3 credentials, or public URLs.
 
 Use it after the Docker Compose stack is running. For this synthetic callback workflow, set `RENDER_QUEUE_BACKEND=database` before starting the stack so the API creates render jobs without enqueueing work for the live worker:

@@ -1,9 +1,15 @@
 # Production Gap Tracker
 
+Scope correction, 2026-10-05: production use means reliable operation on the
+owner's laptop, not a hosted service. This old multi-user/cloud tracker is
+historical. Active gates are L1-L6 in `PRD_TRIP_VIDEO.md` and `status.md`.
+
 This tracker captures remaining M4 hardening work before treating the platform as production-ready for multi-user or client-critical workflows.
 
 | Area | Priority | Status | Acceptance Signal |
 | --- | --- | --- | --- |
+| Real source-media editing | P0 | Blocked: placeholder renderer | Five or more actual images plus a video produce playable edits containing their source content and clip audio. |
+| Usable trip workflow | P0 | Missing integration | Upload or authorized Drive sync proceeds through scan, staging, composition, and authenticated preview/download. |
 | RBAC | P0 | Complete | Validated OIDC users, scoped orchestrators/workers, owner-managed direct/team membership, audited policy checks, and role-matrix tests protect project operations. |
 | Rate limits and quotas | P0 | Complete | Shared Redis windows and atomic database quotas reject abusive or runaway requests by caller and project across API replicas. |
 | Cost controls | P0 | Complete | Analysis, render, delivered storage, delivery attempts, and estimated provider spend are tracked and capped per project with operator summaries. |

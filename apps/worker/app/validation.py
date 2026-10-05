@@ -99,6 +99,7 @@ def validate_output_file(
             "audio_stream": (summary["has_audio"] if require_audio else True),
             "subtitle_presence": summary["has_subtitles"] if require_embedded_subtitles else True,
             "black_frames": not black_frame_signal["detected"] if fail_on_black_frames else True,
+            "decode": black_frame_signal["status"] in {"passed", "warning"},
             "delivery_target": delivery_target in {"drive", "s3", "local_private"},
         }
     )
@@ -139,11 +140,11 @@ def detect_black_frames(path: Path) -> dict:
     command = [
         settings.ffmpeg_path,
         "-hide_banner",
+        "-xerror",
         "-i",
         str(path),
         "-vf",
-        "blackdetect=d=0.2:pix_th=0.10",
-        "-an",
+        "blackdetect=d=0.2:pix_th=0.02",
         "-f",
         "null",
         "-",
@@ -158,6 +159,8 @@ def detect_black_frames(path: Path) -> dict:
         )
     except (OSError, subprocess.SubprocessError) as exc:
         return {"status": "skipped", "detected": False, "reason": str(exc), "segments": []}
+    if completed.returncode != 0:
+        return {"status": "failed", "detected": False, "reason": "output could not be fully decoded", "segments": []}
     return parse_blackdetect_output(completed.stderr)
 
 

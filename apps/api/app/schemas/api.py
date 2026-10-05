@@ -136,6 +136,8 @@ class PlanReviewRequest(BaseModel):
 class PlanRegenerateRequest(BaseModel):
     variants: list[str] = Field(default_factory=lambda: ["youtube_16x9", "shorts_9x16"])
     notes: str | None = Field(default=None, max_length=2000)
+    landscape_target_seconds: int | None = Field(default=None, ge=15, le=300)
+    portrait_target_seconds: int | None = Field(default=None, ge=15, le=60)
 
 
 class RenderRequest(BaseModel):

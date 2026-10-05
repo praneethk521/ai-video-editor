@@ -47,6 +47,7 @@ def render_timeline_job(
     plan: dict,
     dry_run: bool | None = None,
     trace_context: dict[str, str] | None = None,
+    sources: dict | None = None,
 ) -> dict:
     callback = RenderCallbackClient(settings.api_base_url, settings.api_token)
     dry_run = settings.render_dry_run if dry_run is None else dry_run
@@ -55,7 +56,7 @@ def render_timeline_job(
     with render_job_span(variant=variant, dry_run=dry_run, trace_context=trace_context):
         try:
             callback.mark_running(render_job_id)
-            payload = render_timeline(plan, dry_run=dry_run)
+            payload = render_timeline(plan, dry_run=dry_run, **({"sources": sources} if sources is not None else {}))
             callback.complete(render_job_id, payload)
             record_render_job(variant=variant, outcome="succeeded", elapsed_seconds=perf_counter() - started_at)
             return payload
@@ -68,9 +69,9 @@ def render_timeline_job(
             raise
 
 
-def render_timeline(plan: dict, dry_run: bool = True) -> dict:
+def render_timeline(plan: dict, dry_run: bool = False, sources: dict | None = None) -> dict:
     renderer = VideoRenderer(Path(settings.temp_root) / "outputs")
-    result = renderer.render(plan, dry_run=dry_run)
+    result = renderer.render(plan, dry_run=dry_run, sources=sources)
     output_path = Path(result.output_path)
     return {
         "variant": result.variant,

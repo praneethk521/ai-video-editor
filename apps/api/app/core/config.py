@@ -72,6 +72,12 @@ class Settings(BaseSettings):
     clamav_host: str = "clamav"
     clamav_port: int = 3310
     max_upload_bytes: int = 2_147_483_648
+    media_source_root: str = "/tmp/ai-video-editor/sources"
+    ffprobe_path: str = "ffprobe"
+    ffmpeg_path: str = "ffmpeg"
+    max_project_media: int = Field(default=500, ge=1, le=500)
+    landscape_target_seconds: int = Field(default=90, ge=15, le=300)
+    portrait_target_seconds: int = Field(default=30, ge=15, le=60)
     allowed_media_mimes: set[str] = {
         "image/jpeg",
         "image/png",

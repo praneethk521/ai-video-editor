@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -41,8 +42,9 @@ from app.services.audit import audit
 from app.services.analysis_providers import AnalysisProviderError
 from app.services.authorization import project_role_for_user, role_allows
 from app.services.media import complete_drive_oauth, create_drive_connection, create_media_asset, sync_drive_folder
+from app.services.local_media import upload_local_media
 from app.services.metrics import record_workflow_event
-from app.services.output_delivery import cleanup_due_delivered_output, deliver_output_video, record_output_delivery_failure
+from app.services.output_delivery import cleanup_due_delivered_output, deliver_output_video, record_output_delivery_failure, resolve_private_file_locator
 from app.services.planning import (
     analyze_and_plan,
     approve_timeline_plan,
@@ -178,6 +180,43 @@ def connect_drive(
         scopes=connection.scopes,
         authorization_url=authorization_url,
     )
+
+
+@router.post("/{project_id}/upload", response_model=IngestResponse, status_code=201)
+def upload_media(project_id: str, request: Request, file: UploadFile,
+                 db: Session = Depends(get_db), user: CurrentUser = Depends(get_current_user)):
+    project = get_project_for_role_or_404(db, project_id, user, "operator", request, "media.upload")
+    enforce_project_rate_limit(request, project_id=project.id, action="media.upload")
+    try:
+        media = upload_local_media(db, project_id=project_id, upload=file)
+        project.status = ProjectStatus.ingesting
+        audit(db, user_id=user.id, project_id=project_id, action="media.uploaded",
+              correlation_id=request.state.correlation_id, metadata={"asset_id": media.id})
+        db.commit()
+        return IngestResponse(accepted_asset_ids=[media.id])
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        file.file.close()
+
+
+@router.get("/{project_id}/outputs/{output_id}/download")
+def download_output(project_id: str, output_id: str, request: Request,
+                    db: Session = Depends(get_db), user: CurrentUser = Depends(get_current_user)):
+    get_project_for_role_or_404(db, project_id, user, "viewer", request, "output.download")
+    output = db.get(OutputVideo, output_id)
+    if output is None or output.project_id != project_id or (output.validation_json or {}).get("status") != "passed":
+        raise HTTPException(status_code=404, detail="validated output not found")
+    try:
+        if not output.private_locator.startswith(f"file://private/{project_id}/"):
+            raise ValueError("output belongs to a different project")
+        path = resolve_private_file_locator(output.private_locator)
+        if not path.is_file():
+            raise ValueError("output missing")
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="staged output unavailable") from exc
+    return FileResponse(path, media_type="video/mp4", filename=f"{output.variant}.mp4")
 
 
 @router.get("/{project_id}/connect-drive/callback", response_model=ConnectDriveResponse)
@@ -372,7 +411,9 @@ def regenerate_plans(
     )
     enforce_project_rate_limit(request, project_id=project.id, action="timeline.plans.regenerate")
     try:
-        plans = regenerate_timeline_plans(db, project_id=project.id, variants=payload.variants, notes=payload.notes)
+        plans = regenerate_timeline_plans(db, project_id=project.id, variants=payload.variants, notes=payload.notes,
+                                         targets={"youtube_16x9": payload.landscape_target_seconds,
+                                                  "shorts_9x16": payload.portrait_target_seconds})
     except ValueError as exc:
         record_workflow_event("plan_regeneration", "failed")
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc

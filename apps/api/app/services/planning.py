@@ -6,6 +6,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.core.tracing import operation_span
+from app.core.config import settings
 from app.models.entities import AnalysisResult, MediaAsset, PlanStatus, Project, ProjectStatus, TimelinePlan, utcnow
 from app.services.analysis_providers import ProjectAnalysis, get_analysis_provider
 from app.services.malware import require_clean_media_assets
@@ -24,10 +25,11 @@ def add_shared_path() -> None:
 add_shared_path()
 
 from video_shared.timeline import AssetSummary, build_timeline_plan  # noqa: E402
+from video_shared.curation import select_candidates  # noqa: E402
 
 
 def analyze_and_plan(db: Session, *, project_id: str) -> tuple[AnalysisResult, list[TimelinePlan]]:
-    assets = db.query(MediaAsset).filter(MediaAsset.project_id == project_id).all()
+    assets = db.query(MediaAsset).filter(MediaAsset.project_id == project_id).order_by(MediaAsset.created_at, MediaAsset.id).all()
     if not assets:
         raise ValueError("project has no media assets")
     require_clean_media_assets(assets)
@@ -76,8 +78,9 @@ def reject_timeline_plan(db: Session, *, project_id: str, plan_id: str, notes: s
     return plan
 
 
-def regenerate_timeline_plans(db: Session, *, project_id: str, variants: list[str], notes: str | None) -> list[TimelinePlan]:
-    assets = db.query(MediaAsset).filter(MediaAsset.project_id == project_id).all()
+def regenerate_timeline_plans(db: Session, *, project_id: str, variants: list[str], notes: str | None,
+                             targets: dict | None = None) -> list[TimelinePlan]:
+    assets = db.query(MediaAsset).filter(MediaAsset.project_id == project_id).order_by(MediaAsset.created_at, MediaAsset.id).all()
     if not assets:
         raise ValueError("project has no media assets")
     require_clean_media_assets(assets)
@@ -99,6 +102,7 @@ def regenerate_timeline_plans(db: Session, *, project_id: str, variants: list[st
         analysis_json=analysis_result.result_json,
         variants=requested,
         notes=notes,
+        targets=targets,
     )
     project = db.get(Project, project_id)
     if project is not None:
@@ -113,13 +117,34 @@ def create_timeline_plans(
     analysis_json: dict,
     variants: list[str],
     notes: str | None = None,
+    targets: dict | None = None,
 ) -> list[TimelinePlan]:
     asset_summaries = asset_summaries_from_analysis(analysis_json)
+    db.flush()
     plans = []
     for variant in variants:
-        plan_json = build_timeline_plan(project_id, asset_summaries, variant)
+        local_curation = analysis_json.get("provider") == "local-pixel-quality-v1"
+        selection = None
+        if local_curation:
+            target = settings.landscape_target_seconds if variant == "youtube_16x9" else settings.portrait_target_seconds
+            target = (targets or {}).get(variant) or target
+            selection = select_candidates(analysis_json["asset_features"], target_seconds=target,
+                                          max_clip_seconds=8 if variant == "youtube_16x9" else 3)
+            if not selection["selected"]:
+                raise ValueError("no automatically usable media; quality review is required before planning")
+            asset_summaries = [AssetSummary(asset_id=item["asset_id"], duration_seconds=item["selected_duration"],
+                                            source_start=item["selected_start"]) for item in selection["selected"]]
+        plan_json = build_timeline_plan(project_id, asset_summaries, variant, curated=local_curation)
+        if selection is not None:
+            plan_json["selection"] = {key: value for key, value in selection.items() if key != "selected"}
+            plan_json["export"]["max_duration_seconds"] = int(selection["target_seconds"])
+            plan_json["strategy"]["hook"] = "Local technical-quality selection; semantic and eye-state review still required."
         if notes is not None:
             plan_json["strategy"]["review_notes"] = notes or "Regenerated from reviewer request."
+        for approved in db.query(TimelinePlan).filter(TimelinePlan.project_id == project_id,
+                                                      TimelinePlan.variant == variant,
+                                                      TimelinePlan.status == PlanStatus.approved).all():
+            approved.status = PlanStatus.rejected
         plan = TimelinePlan(
             project_id=project_id,
             variant=variant,
@@ -151,6 +176,10 @@ def list_analysis_results(db: Session, *, project_id: str) -> list[AnalysisResul
 
 
 def analyze_with_tracing(assets: list[MediaAsset]) -> ProjectAnalysis:
+    if any((asset.metadata_json or {}).get("relative_path") for asset in assets):
+        from app.services.local_analysis import analyze_local_media
+        with operation_span("analysis.provider", attributes={"analysis.provider": "local-pixel-quality-v1"}):
+            return analyze_local_media(assets)
     provider = get_analysis_provider()
     with operation_span("analysis.provider", attributes={"analysis.provider": provider.provider_name}):
         return provider.analyze(assets)

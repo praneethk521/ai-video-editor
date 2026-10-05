@@ -19,3 +19,13 @@ outputs/
 *.sqlite3
 *.db
 *.tsbuildinfo
+secrets/
+credentials/
+models/
+.local/
+client_secret*.json
+credentials*.json
+token.json
+tokens.json
+*.pem
+*.key

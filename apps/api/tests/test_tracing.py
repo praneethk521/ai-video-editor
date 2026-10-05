@@ -109,6 +109,7 @@ def test_rq_dispatch_propagates_trace_context_as_job_kwargs(monkeypatch):
     assert enqueued[0]["func"] == "app.jobs.render_timeline_job"
     assert enqueued[0]["args"] == ("render-1", {"variant": "youtube_16x9"})
     assert enqueued[0]["kwargs"] == {
+        "sources": {},
         "trace_context": {
             "traceparent": "00-80e1afed08e019fc1110464cfa66635c-7a085853722dc6d2-01"
         }

@@ -638,3 +638,10 @@ button.iconButton {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+/* Keep source filenames and portrait previews contained on narrow screens. */
+input[type="file"] { max-width: 100%; min-width: 0; }
+.outputPreview { display: block; width: 100%; max-height: 480px; background: #111; object-fit: contain; }
+.outputRow a { display: inline-flex; align-items: center; gap: 6px; }
+.selectionDecisions { padding-left: 20px; max-height: 280px; overflow: auto; }
+.selectionDecisions li { margin: 8px 0; overflow-wrap: anywhere; }
+.selectionDecisions span { display: block; font-size: 13px; color: #53615b; }

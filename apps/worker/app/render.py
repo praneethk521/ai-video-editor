@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import subprocess
+import hashlib
+import math
+import tempfile
+import time
+from uuid import uuid4
 from dataclasses import dataclass
 from pathlib import Path
 
 from app.config import settings
 from app.timeline import validate_timeline
 from app.validation import skipped_validation, validate_output_file
+from video_shared.media import probe_media, safe_component, source_path
 
 
 @dataclass(frozen=True)
@@ -25,30 +31,31 @@ class VideoRenderer:
         self.output_root = output_root
         self.output_root.mkdir(parents=True, exist_ok=True)
 
-    def render(self, plan: dict, dry_run: bool = True) -> RenderResult:
+    def render(self, plan: dict, dry_run: bool = False, sources: dict | None = None) -> RenderResult:
         plan = validate_timeline(plan)
-        project_id = plan["project_id"]
+        project_id = safe_component(plan["project_id"])
         variant = plan["variant"]
         export = plan["export"]
         duration = self._duration(plan)
-        output_path = self.output_root / project_id / f"{variant}.mp4"
+        filename = f"{variant}.mp4" if dry_run else f"{variant}-{uuid4().hex}.mp4"
+        output_path = self.output_root / project_id / filename
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         if dry_run:
             output_path.write_bytes(b"private placeholder mp4 for local integration tests\n")
             validation = skipped_validation("dry_run")
         else:
-            self._render_placeholder_with_ffmpeg(output_path, export, duration)
-            validation = validate_output_file(
-                output_path,
-                expected_width=export["width"],
-                expected_height=export["height"],
-                expected_duration_seconds=duration,
-                expected_caption_count=self._caption_count(plan),
-                delivery_target=settings.output_storage_provider,
-                require_embedded_subtitles=settings.require_embedded_subtitles,
-                fail_on_black_frames=settings.fail_on_black_frames,
-            )
+            try:
+                self._render_sources(output_path, plan, sources or {})
+                validation = validate_output_file(
+                    output_path, expected_width=export["width"], expected_height=export["height"],
+                    expected_duration_seconds=duration, delivery_target=settings.output_storage_provider,
+                    require_embedded_subtitles=settings.require_embedded_subtitles,
+                    fail_on_black_frames=True,
+                )
+            except Exception:
+                output_path.unlink(missing_ok=True)
+                raise
 
         return RenderResult(
             variant=variant,
@@ -68,28 +75,75 @@ class VideoRenderer:
             },
         )
 
-    def _render_placeholder_with_ffmpeg(self, output_path: Path, export: dict, duration: float) -> None:
-        command = [
-            settings.ffmpeg_path,
-            "-y",
-            "-f",
-            "lavfi",
-            "-i",
-            f"color=c=black:s={export['width']}x{export['height']}:d={max(duration, 1)}",
-            "-f",
-            "lavfi",
-            "-i",
-            f"anullsrc=channel_layout=stereo:sample_rate=48000:d={max(duration, 1)}",
-            "-shortest",
-            "-c:v",
-            "libx264",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            str(output_path),
-        ]
-        subprocess.run(command, check=True, timeout=settings.max_job_seconds)
+    def _render_sources(self, output_path: Path, plan: dict, sources: dict) -> None:
+        tracks = plan["tracks"]
+        if len(tracks) != 1 or tracks[0]["type"] != "video":
+            raise ValueError("montage rendering requires one video track")
+        clips = tracks[0]["clips"]
+        export = plan["export"]
+        width, height, fps = export["width"], export["height"], export["fps"]
+        if not 1 <= len(clips) <= 100 or (width, height) not in {(1920, 1080), (1080, 1920)} or fps != 30:
+            raise ValueError("unsupported montage export or clip count")
+        resolved = []
+        cursor = 0.0
+        for clip in clips:
+            duration = clip["end"] - clip["start"]
+            if not math.isfinite(duration) or duration <= 0 or abs(clip["timeline_start"] - cursor) > 0.01:
+                raise ValueError("clips must be positive and contiguous")
+            if clip.get("effect") not in {None, "cut"} or clip.get("caption"):
+                raise ValueError("effects and captions are not supported by the montage renderer")
+            if clip.get("crop_strategy") not in {None, "center"}:
+                raise ValueError("only aspect-preserving montage fit is supported")
+            source = sources.get(clip["asset_id"])
+            if not source:
+                raise ValueError("source manifest is missing a timeline asset")
+            path = source_path(Path(settings.media_source_root), plan["project_id"], source["relative_path"])
+            with path.open("rb") as stream:
+                checksum = hashlib.file_digest(stream, "sha256").hexdigest()
+            if checksum != source["sha256"]:
+                raise ValueError("source changed after validation")
+            metadata = probe_media(path, settings.ffprobe_path)
+            still = metadata["mime_type"].startswith("image/")
+            if not still and clip["end"] > metadata["duration_seconds"] + 0.01:
+                raise ValueError("clip exceeds source duration")
+            resolved.append((clip, path, metadata, still, duration))
+            cursor += duration
+        if cursor > min(export.get("max_duration_seconds", 900), 900):
+            raise ValueError("timeline exceeds export duration limit")
+        deadline = time.monotonic() + settings.max_job_seconds
+
+        def run(command: list[str]) -> None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("render deadline exceeded")
+            subprocess.run([settings.ffmpeg_path, "-hide_banner", "-loglevel", "error", "-nostdin", "-y", *command],
+                           check=True, capture_output=True, timeout=remaining)
+
+        with tempfile.TemporaryDirectory(prefix="segments-", dir=output_path.parent) as temporary:
+            directory = Path(temporary)
+            segments = []
+            for index, (clip, path, metadata, still, duration) in enumerate(resolved):
+                segment = directory / f"segment-{index}.mp4"
+                args = ["-protocol_whitelist", "file,pipe", "-threads", "2"]
+                if still:
+                    args += ["-loop", "1", "-framerate", str(fps)]
+                else:
+                    args += ["-ss", str(clip["start"])]
+                args += ["-i", str(path)]
+                has_audio = not still and metadata["has_audio"]
+                if not has_audio:
+                    args += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
+                fit = f"scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2:out_range=tv:out_color_matrix=bt709,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps},format=yuv420p,setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709"
+                args += ["-map", "0:v:0", "-map", "0:a:0" if has_audio else "1:a:0",
+                         "-vf", fit, "-af", "aresample=48000,apad", "-t", str(duration),
+                         "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-threads", "2",
+                         "-filter_threads", "1", "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2",
+                         "-map_metadata", "-1", str(segment)]
+                run(args)
+                segments.append(segment)
+            concat = directory / "concat.txt"
+            concat.write_text("".join(f"file '{segment.name}'\n" for segment in segments))
+            run(["-f", "concat", "-safe", "1", "-i", str(concat), "-c", "copy", "-movflags", "+faststart", str(output_path)])
 
     @staticmethod
     def _duration(plan: dict) -> float:

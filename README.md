@@ -1,6 +1,13 @@
 # AI Video Editor
 
-Production-oriented AI video editing automation platform for private media ingestion, analysis, timeline planning, rendering, and review.
+Laptop-only trip video editor for private Google Photos album import, local
+curation, timeline review, rendering, and playback. GitHub hosts code, not the app or media.
+
+**Current readiness (2026-10-05): local rendering demonstrated; curated album workflow in development.**
+The Yellowstone demo produced real videos. Google Photos Picker import, local
+semantic selection and detailed selection review remain release work. See the
+[authoritative PRD](docs/PRD_TRIP_VIDEO.md) and [current status](docs/status.md).
+Older cloud/Drive deployment references below are not the product's target.
 
 The repository is structured for secure deployment. The source code can live in a public or private GitHub repository, but real secrets, raw media, local databases, and rendered outputs must stay private and untracked. It does not publish to YouTube, Instagram, or any public destination. Outputs are stored privately and are intended for manual upload only.
 
@@ -16,6 +23,10 @@ The repository is structured for secure deployment. The source code can live in 
 - `docs`: PRD, milestones, status, runbooks, and security checklist.
 
 ## Local Quickstart
+
+Use [Local Trip Demo](docs/LOCAL_TRIP_DEMO.md) for the active laptop-only stack
+on ports 3001/8001 and the real Yellowstone workflow. The original general stack
+below is retained for reference, not required for local trip editing.
 
 1. Copy `.env.example` to `.env` and set `API_TOKEN`, `TOKEN_ENCRYPTION_KEY`, plus provider credentials.
 2. Start services:
