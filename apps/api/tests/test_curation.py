@@ -3,6 +3,8 @@ import math
 import pytest
 
 from app.services.local_analysis import SIDE, inspect_pixels
+from app.services import local_vision
+from app.services.local_vision import VisionEvidence, conservative_evidence, feature_fields
 from app.services.planning import create_timeline_plans, approve_timeline_plan
 from app.models.entities import PlanStatus
 from video_shared.curation import select_candidates
@@ -28,6 +30,93 @@ def test_best_duplicate_wins_and_bad_quality_requires_review():
     assert [item["asset_id"] for item in result["selected"]] == ["sharp"]
     assert result["decisions"][0]["alternative_to"] == "sharp"
     assert result["decisions"][2]["status"] == "review"
+
+
+def test_semantic_selection_prefers_story_diversity_and_capture_order():
+    items = [
+        candidate("geyser-best", 0.9, editorial_score=0.95, story_group="landmark:geothermal",
+                  capture_time="2026-01-02T12:00:00Z", semantic={"confidence": 0.9}),
+        candidate("geyser-second", 0.9, editorial_score=0.94, story_group="landmark:geothermal",
+                  capture_time="2026-01-01T12:00:00Z", semantic={"confidence": 0.9}),
+        candidate("waterfall", 0.7, editorial_score=0.75, story_group="landscape:waterfall",
+                  capture_time="2026-01-03T12:00:00Z", semantic={"confidence": 0.8}),
+    ]
+    result = select_candidates(items, target_seconds=6, max_clip_seconds=3)
+    assert [item["asset_id"] for item in result["selected"]] == ["geyser-best", "waterfall"]
+    assert result["method"] == "local_semantic_curation_v1"
+
+
+def test_confident_closed_eyes_are_held_for_review():
+    closed = candidate("closed", editorial_score=0.99,
+                       semantic={"confidence": 0.9, "eye_state": "closed", "occlusion": "none"})
+    open_photo = candidate("open", editorial_score=0.8,
+                           semantic={"confidence": 0.9, "eye_state": "open", "occlusion": "none"})
+    result = select_candidates([closed, open_photo], target_seconds=6, max_clip_seconds=3)
+    assert [item["asset_id"] for item in result["selected"]] == ["open"]
+    assert result["decisions"][0]["status"] == "review"
+    assert "eye_state_review" in result["decisions"][0]["reasons"]
+
+
+def test_local_vision_downgrades_uncertain_face_claims():
+    evidence = VisionEvidence(
+        scene="group", setting="outdoor", people_count=2, face_visibility="partial", eye_state="closed",
+        occlusion="minor", point_of_interest="scenic_background", landmark_hint="A famous place",
+        editorial_relevance=0.8, moment_quality=0.7, tags=["people", "scenery"], confidence=0.65,
+        needs_review=False,
+    )
+    conservative = conservative_evidence(evidence)
+    assert conservative.eye_state == "uncertain"
+    assert conservative.needs_review is True
+    assert feature_fields(conservative)["story_group"] == "group:people"
+
+
+def test_local_vision_rejects_cross_field_wildlife_claim():
+    evidence = VisionEvidence(
+        scene="landscape", setting="outdoor", people_count=0, face_visibility="no_people",
+        eye_state="no_people", occlusion="none", point_of_interest="wildlife",
+        landmark_hint=None, editorial_relevance=0.8, moment_quality=0.8,
+        tags=["waterfall", "scenery"], confidence=0.9, needs_review=False,
+    )
+    conservative = conservative_evidence(evidence)
+    assert conservative.point_of_interest == "natural_landmark"
+    assert feature_fields(conservative)["story_group"] == "landscape:waterfall"
+
+
+@pytest.mark.parametrize("url", ["https://example.com:11434", "http://192.168.1.10:11434",
+                                 "http://localhost:9000", "http://user@localhost:11434"])
+def test_local_vision_rejects_non_loopback_endpoints(monkeypatch, url):
+    monkeypatch.setattr(local_vision.settings, "local_vision_url", url)
+    with pytest.raises(local_vision.LocalVisionError, match="loopback"):
+        local_vision.endpoint()
+
+
+def test_local_vision_normalizes_ten_point_model_scores(monkeypatch):
+    content = VisionEvidence(
+        scene="landmark", setting="outdoor", people_count=0, face_visibility="no_people",
+        eye_state="no_people", occlusion="none", point_of_interest="natural_landmark",
+        landmark_hint="geothermal spring", editorial_relevance=0.7, moment_quality=0.8,
+        tags=["geothermal", "scenery"], confidence=0.9, needs_review=False,
+    ).model_dump()
+    content.update(editorial_relevance=7, moment_quality=8, confidence=9)
+
+    class Response:
+        is_success = True
+        content = b"response"
+
+        def json(self):
+            return {"message": {"content": __import__("json").dumps(content)}}
+
+    class Client:
+        def __init__(self, **kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def post(self, *args, **kwargs): return Response()
+
+    monkeypatch.setattr(local_vision.httpx, "Client", Client)
+    result = local_vision.analyze_preview(b"\xff\xd8preview")
+    assert result.editorial_relevance == 0.7
+    assert result.moment_quality == 0.8
+    assert result.confidence == 0.9
 
 
 def test_nonzero_video_trim_and_short_source_are_bounded():

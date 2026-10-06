@@ -3,10 +3,10 @@
 Laptop-only trip video editor for private Google Photos album import, local
 curation, timeline review, rendering, and playback. GitHub hosts code, not the app or media.
 
-**Current readiness (2026-10-06): local rendering demonstrated; Google Photos transport implemented.**
+**Current readiness (2026-10-06): local rendering and semantic curation demonstrated; Google Photos transport implemented.**
 The Yellowstone demo produced real videos. Google Photos Picker import is ready
-for an owner OAuth acceptance run; local semantic selection and detailed
-selection review remain release work. See the
+for an owner OAuth acceptance run; the local vision model now supplies strict
+reviewable evidence, while detailed selection review remains release work. See the
 [authoritative PRD](docs/PRD_TRIP_VIDEO.md) and [current status](docs/status.md).
 Older cloud/Drive deployment references below are not the product's target.
 
@@ -44,6 +44,8 @@ docker compose -f infra/docker/docker-compose.yml up --build
 The current executable slice supports:
 
 - Create projects.
+- Analyze bounded local previews with an Ollama vision model, conservative
+  eye/landmark handling, technical-quality scoring and semantic story diversity.
 - Authorize Google Photos Picker per project and resumably import selected photos
   and videos through the same private malware-scan and media-probe path as local uploads.
 - Connect a private Google Drive folder record with least-privilege scope metadata.

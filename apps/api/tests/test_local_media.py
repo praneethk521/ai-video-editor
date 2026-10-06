@@ -3,10 +3,10 @@ from types import SimpleNamespace
 import pytest
 
 from app.core.config import settings
-from app.models.entities import MediaAsset, OutputVideo, RenderJob
+from app.models.entities import MediaAsset, OutputVideo, PlanStatus, Project, ProjectStatus, RenderJob, RenderStatus, TimelinePlan
 from app.services import local_media
 from app.services.malware import ClamAVScanner
-from app.services.rendering import complete_render_job
+from app.services.rendering import complete_render_job, refresh_project_render_status
 
 
 @pytest.fixture
@@ -100,3 +100,44 @@ def test_completion_rejects_unvalidated_outputs(db_session, status):
     db_session.flush()
     with pytest.raises(ValueError, match="only validated"):
         complete_render_job(db_session, render_job_id=job.id, result=SimpleNamespace(validation={"status": status}))
+
+
+def test_render_status_ignores_jobs_from_rejected_plans(client, auth_headers, db_session):
+    project_id = client.post("/projects", headers=auth_headers, json={"name": "Rerender"}).json()["id"]
+    old_plan = TimelinePlan(
+        project_id=project_id,
+        variant="youtube_16x9",
+        status=PlanStatus.rejected,
+        confidence_score=0.5,
+        plan_json={},
+    )
+    current_plan = TimelinePlan(
+        project_id=project_id,
+        variant="youtube_16x9",
+        status=PlanStatus.approved,
+        confidence_score=0.9,
+        plan_json={},
+    )
+    db_session.add_all([old_plan, current_plan])
+    db_session.flush()
+    db_session.add_all(
+        [
+            RenderJob(
+                project_id=project_id,
+                timeline_plan_id=old_plan.id,
+                variant="youtube_16x9",
+                status=RenderStatus.failed,
+            ),
+            RenderJob(
+                project_id=project_id,
+                timeline_plan_id=current_plan.id,
+                variant="youtube_16x9",
+                status=RenderStatus.succeeded,
+            ),
+        ]
+    )
+    db_session.flush()
+
+    refresh_project_render_status(db_session, project_id=project_id)
+
+    assert db_session.get(Project, project_id).status == ProjectStatus.ready

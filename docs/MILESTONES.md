@@ -1,6 +1,6 @@
 # Milestones
 
-## Active Laptop Roadmap (2026-10-05)
+## Active Laptop Roadmap (2026-10-06)
 
 The authoritative scope is `PRD_TRIP_VIDEO.md`: laptop-only execution, Google
 Photos albums, local intelligent curation and review. No public/cloud deployment.
@@ -8,6 +8,15 @@ L1: real-render validation; L2: bounded curation; L3: Photos Picker import;
 L4: local semantic model; L5: selection review; L6: real large-album acceptance.
 See `status.md` for live progress. The M0-M4 sections below are historical work,
 not the current release checklist.
+
+L4 has a working Ollama/Qwen 2.5 VL baseline with strict local inference,
+confidence handling and semantic story diversity. Portrait/eye-state fixtures,
+multi-frame semantic video scoring and large-album measurements remain.
+
+Current gate status: L1-L2 are working baselines, L3 is implemented pending a
+real owner OAuth run, L4 is a validated scenic baseline, and L5-L6 remain partial.
+The next engineering milestone is L5 thumbnail review with include, exclude, pin
+and trim overrides. See `status.md` for the exact acceptance evidence.
 
 ## M0 - Secure Foundation
 
@@ -49,9 +58,10 @@ Status: In progress
 
 Status: In progress
 
-Product blocker: current worker writes placeholder bytes or a black/silent MP4;
-source retrieval and actual media composition are not implemented. Existing smoke
-tests do not demonstrate a usable edit. See `TRIP_VIDEO_READINESS.md`.
+Historical blocker resolved: the worker now composes actual source media, retains
+clip audio, validates decode/resolution/duration/audio/black frames and produces
+private local landscape and vertical MP4 outputs. Transitions, music and
+face-aware vertical crops remain future quality work.
 
 - FFmpeg/Remotion production renderer.
 - Captions, transitions, audio normalization, vertical subject crop.

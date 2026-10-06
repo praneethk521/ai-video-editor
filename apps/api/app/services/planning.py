@@ -123,7 +123,7 @@ def create_timeline_plans(
     db.flush()
     plans = []
     for variant in variants:
-        local_curation = analysis_json.get("provider") == "local-pixel-quality-v1"
+        local_curation = analysis_json.get("provider") in {"local-pixel-quality-v1", "local-vision-curation-v1"}
         selection = None
         if local_curation:
             target = settings.landscape_target_seconds if variant == "youtube_16x9" else settings.portrait_target_seconds
@@ -138,7 +138,11 @@ def create_timeline_plans(
         if selection is not None:
             plan_json["selection"] = {key: value for key, value in selection.items() if key != "selected"}
             plan_json["export"]["max_duration_seconds"] = int(selection["target_seconds"])
-            plan_json["strategy"]["hook"] = "Local technical-quality selection; semantic and eye-state review still required."
+            plan_json["strategy"]["hook"] = (
+                "Local vision selection with technical, semantic and diversity evidence; owner review required."
+                if analysis_json.get("provider") == "local-vision-curation-v1" else
+                "Local technical-quality selection; semantic and eye-state review still required."
+            )
         if notes is not None:
             plan_json["strategy"]["review_notes"] = notes or "Regenerated from reviewer request."
         for approved in db.query(TimelinePlan).filter(TimelinePlan.project_id == project_id,
@@ -178,7 +182,8 @@ def list_analysis_results(db: Session, *, project_id: str) -> list[AnalysisResul
 def analyze_with_tracing(assets: list[MediaAsset]) -> ProjectAnalysis:
     if any((asset.metadata_json or {}).get("relative_path") for asset in assets):
         from app.services.local_analysis import analyze_local_media
-        with operation_span("analysis.provider", attributes={"analysis.provider": "local-pixel-quality-v1"}):
+        provider = "local-vision-curation-v1" if settings.local_vision_enabled else "local-pixel-quality-v1"
+        with operation_span("analysis.provider", attributes={"analysis.provider": provider}):
             return analyze_local_media(assets)
     provider = get_analysis_provider()
     with operation_span("analysis.provider", attributes={"analysis.provider": provider.provider_name}):

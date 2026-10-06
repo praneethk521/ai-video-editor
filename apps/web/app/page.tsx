@@ -142,6 +142,8 @@ type AnalysisResult = {
   provider: string;
   result: {
     summary?: {
+      asset_count?: number;
+      review_count?: number;
       scene_count?: number;
       primary_orientation?: string;
       average_highlight_score?: number;
@@ -1138,16 +1140,16 @@ export default function Page() {
               {latestAnalysis ? (
                 <>
                   <div className="analysisMetric">
+                    <span>Assets</span>
+                    <strong>{latestAnalysis.result.summary?.asset_count ?? latestAnalysis.result.asset_features?.length ?? 0}</strong>
+                  </div>
+                  <div className="analysisMetric">
                     <span>Scenes</span>
                     <strong>{latestAnalysis.result.summary?.scene_count ?? 0}</strong>
                   </div>
                   <div className="analysisMetric">
-                    <span>Orientation</span>
-                    <strong>{latestAnalysis.result.summary?.primary_orientation ?? "unknown"}</strong>
-                  </div>
-                  <div className="analysisMetric">
-                    <span>Audio</span>
-                    <strong>{latestAnalysis.result.summary?.audio_quality ?? "unknown"}</strong>
+                    <span>Review</span>
+                    <strong>{latestAnalysis.result.summary?.review_count ?? 0}</strong>
                   </div>
                   <div className="analysisMetric">
                     <span>Avg score</span>

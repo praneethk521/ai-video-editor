@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     analysis_provider_circuit_failure_threshold: int = 3
     analysis_provider_circuit_reset_seconds: int = 60
     analysis_provider_include_private_locator: bool = False
+    local_vision_enabled: bool = False
+    local_vision_url: str = "http://127.0.0.1:11434"
+    local_vision_model: str = "qwen2.5vl:7b"
+    local_vision_timeout_seconds: int = Field(default=120, ge=10, le=600)
     clamav_host: str = "clamav"
     clamav_port: int = 3310
     max_upload_bytes: int = 2_147_483_648

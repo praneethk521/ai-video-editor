@@ -9,6 +9,7 @@ from app import jobs as worker_jobs
 from app.config import WorkerSettings
 from app.jobs import render_timeline
 from app.render import VideoRenderer
+from app.timeline import validate_timeline
 from app.tracing import normalized_variant, parse_exporter_headers
 from app.validation import parse_blackdetect_output, summarize_ffprobe
 
@@ -79,6 +80,27 @@ def test_render_timeline_returns_private_output_metadata():
     assert result["upload_package"]["manual_upload_only"] is True
     assert result["upload_package"]["delivery_status"] == "private_staging"
     assert result["validation"]["status"] == "skipped"
+
+
+def test_worker_accepts_semantic_curation_selection_method():
+    plan = {
+        "project_id": "project-1",
+        "variant": "youtube_16x9",
+        "version": 1,
+        "confidence_score": 0.8,
+        "selection": {
+            "method": "local_semantic_curation_v1",
+            "target_seconds": 30,
+            "duration_seconds": 3,
+            "decisions": [],
+            "limitations": ["Owner review required"],
+        },
+        "tracks": [{"type": "video", "clips": [
+            {"asset_id": "asset-1", "start": 0, "end": 3, "timeline_start": 0}
+        ]}],
+        "export": {"width": 1920, "height": 1080, "fps": 30, "format": "mp4"},
+    }
+    assert validate_timeline(plan) is plan
 
 
 def test_render_job_records_worker_metrics(monkeypatch):

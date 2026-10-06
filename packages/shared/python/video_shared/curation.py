@@ -17,18 +17,28 @@ def select_candidates(features: list[dict], *, target_seconds: float, max_clip_s
     ranked = []
     for index, item in enumerate(features):
         quality = item.get("quality") or {}
-        score = quality.get("score", 0)
+        score = item.get("editorial_score", quality.get("score", 0))
         duration = item.get("duration_seconds", 0)
         start = item.get("recommended_start", 0)
         if not all(isinstance(value, (int, float)) and math.isfinite(value) for value in (score, duration, start)):
             raise ValueError("candidate evidence must be finite")
         if not 0 <= score <= 1 or duration <= 0 or not 0 <= start < duration:
             raise ValueError("invalid candidate evidence")
+        semantic = item.get("semantic") or {}
         reasons = list(quality.get("flags") or [])
+        if semantic.get("needs_review"):
+            reasons.append("semantic_review_required")
+        if semantic.get("eye_state") in {"closed", "mixed"}:
+            reasons.append("eye_state_review")
+        if semantic.get("occlusion") == "major":
+            reasons.append("major_occlusion_review")
         decisions[item["asset_id"]] = {"asset_id": item["asset_id"], "status": "review",
                                        "reasons": reasons, "score": score}
         if quality.get("usable") is False:
             decisions[item["asset_id"]]["reasons"].append("quality_review_required")
+            continue
+        if (semantic.get("confidence", 0) >= 0.7
+                and (semantic.get("eye_state") in {"closed", "mixed"} or semantic.get("occlusion") == "major")):
             continue
         ranked.append((index, item))
 
@@ -44,9 +54,22 @@ def select_candidates(features: list[dict], *, target_seconds: float, max_clip_s
             groups[group] = item["asset_id"]
             representatives.append((index, item))
 
+    # Allocate the first pass across different semantic story groups, then fill
+    # remaining time with the next-best items. Unknown items remain independent.
+    first_by_story, overflow = [], []
+    seen_stories = set()
+    for pair in representatives:
+        item = pair[1]
+        story = item.get("story_group") or item["asset_id"]
+        if story in seen_stories:
+            overflow.append(pair)
+        else:
+            seen_stories.add(story)
+            first_by_story.append(pair)
+
     selected = []
     remaining = target_seconds
-    for index, item in representatives:
+    for index, item in first_by_story + overflow:
         duration = min(max_clip_seconds, item["duration_seconds"] - item.get("recommended_start", 0))
         if item.get("mime_type", "").startswith("image/"):
             duration = min(3.0, duration)
@@ -60,11 +83,22 @@ def select_candidates(features: list[dict], *, target_seconds: float, max_clip_s
             continue
         start = round(item.get("recommended_start", 0), 2)
         selected.append((index, {**item, "selected_start": start, "selected_duration": duration}))
-        decisions[item["asset_id"]].update(status="selected", reasons=["quality_representative"], start=start, duration=duration)
+        reasons = list(decisions[item["asset_id"]]["reasons"]) + ["quality_representative"]
+        if item.get("story_group"):
+            reasons.append("semantic_story_group")
+        decisions[item["asset_id"]].update(status="selected", reasons=list(dict.fromkeys(reasons)),
+                                            start=start, duration=duration)
         remaining = round(remaining - duration, 2)
-    selected.sort(key=lambda pair: pair[0])
-    return {"method": "local_technical_quality_v1", "target_seconds": target_seconds,
+    if selected and all(item.get("capture_time") for _, item in selected):
+        selected.sort(key=lambda pair: (pair[1]["capture_time"], pair[0]))
+    else:
+        selected.sort(key=lambda pair: pair[0])
+    semantic = any(item.get("semantic") for item in features)
+    return {"method": "local_semantic_curation_v1" if semantic else "local_technical_quality_v1",
+            "target_seconds": target_seconds,
             "duration_seconds": round(target_seconds - remaining, 2),
             "selected": [item for _, item in selected],
             "decisions": [decisions[item["asset_id"]] for item in features],
-            "limitations": ["No eye-state or landmark model yet", "Chronology follows import order", "Technical quality is not story relevance"]}
+            "limitations": (["Semantic evidence requires owner review", "Landmark hints are not verified locations"]
+                            if semantic else ["No eye-state or landmark model yet", "Chronology follows import order",
+                                              "Technical quality is not story relevance"])}

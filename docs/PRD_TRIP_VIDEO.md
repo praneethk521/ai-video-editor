@@ -119,5 +119,8 @@ completed with 26-second landscape and 21-second portrait outputs. These were
 all-input montages, not completion of this curation PRD. The L3 Picker transport,
 OAuth, encrypted state, private resumable ingest and dashboard flow are now
 implemented and unit-tested; L3 remains open until a real private album completes
-the workflow on this laptop. Current results and next actions live in
+the workflow on this laptop. The L4 baseline now runs an Apache-2.0 local vision
+model through a strict loopback-only schema and has completed a seven-asset
+Yellowstone analysis; portrait/eye-state and large-album acceptance remain.
+Current results and next actions live in
 [status.md](status.md).

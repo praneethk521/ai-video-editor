@@ -9,6 +9,7 @@ from pathlib import Path
 from app.core.config import settings
 from app.models.entities import MediaAsset
 from app.services.analysis_providers import ProjectAnalysis
+from app.services.local_vision import analyze_preview, feature_fields
 from video_shared.media import source_path
 
 SIDE = 128
@@ -46,6 +47,18 @@ def read_frame(path: Path, timestamp: float) -> bytes:
     return result.stdout
 
 
+def read_preview(path: Path, timestamp: float) -> bytes:
+    result = subprocess.run(
+        [settings.ffmpeg_path, "-v", "error", "-nostdin", "-protocol_whitelist", "file,pipe",
+         "-ss", str(timestamp), "-i", str(path), "-vf", "scale=768:-2:force_original_aspect_ratio=decrease",
+         "-frames:v", "1", "-threads", "1", "-q:v", "5", "-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1"],
+        check=True, capture_output=True, timeout=30,
+    )
+    if not result.stdout.startswith(b"\xff\xd8") or len(result.stdout) > 3 * 1024 * 1024:
+        raise ValueError("could not create a bounded local vision preview")
+    return result.stdout
+
+
 def analyze_local_media(assets: list[MediaAsset]) -> ProjectAnalysis:
     if not 1 <= len(assets) <= 500:
         raise ValueError("local analysis requires 1-500 media files")
@@ -80,15 +93,34 @@ def analyze_local_media(assets: list[MediaAsset]) -> ProjectAnalysis:
                     break
             fingerprints.append((fingerprint, group))
         checksums[checksum] = group
+        semantic = feature_fields(analyze_preview(read_preview(path, timestamp))) if settings.local_vision_enabled else {}
+        if semantic:
+            combined = round(0.45 * quality["score"] + 0.55 * semantic["editorial_score"], 4)
+            semantic.update(editorial_score=combined, highlight_score=combined)
+        quality = {**quality, "eye_state": (semantic.get("semantic") or {}).get("eye_state", "unknown"),
+                   "landmark": (semantic.get("semantic") or {}).get("landmark_hint") or "unknown"}
         features.append({"asset_id": asset.id, "mime_type": asset.mime_type,
                          "duration_seconds": duration, "orientation": asset.orientation,
                          "quality": quality, "highlight_score": quality["score"],
-                         "duplicate_group": group, "recommended_start": 0 if still else round(max(0, min(timestamp - 1, duration - min(8, duration))), 2),
-                         "sample_times": times, "subject": {"presence": "unknown"},
-                         "audio": {"quality": "unknown"}, "tags": [], "scene_count": 1})
-    return ProjectAnalysis(provider="local-pixel-quality-v1", result={
-        "schema_version": 1, "provider": "local-pixel-quality-v1", "asset_features": features,
+                         "editorial_score": quality["score"], "duplicate_group": group,
+                         "recommended_start": 0 if still else round(max(0, min(timestamp - 1, duration - min(8, duration))), 2),
+                         "sample_times": times, "capture_time": metadata.get("capture_time"),
+                         "subject": {"presence": "unknown"}, "audio": {"quality": "unknown"},
+                         "tags": [], "scene_count": 1, **semantic})
+    provider = "local-vision-curation-v1" if settings.local_vision_enabled else "local-pixel-quality-v1"
+    limitations = (["Semantic model output is evidence for owner review, not ground truth",
+                    "Eye state and landmark hints remain uncertain below confidence thresholds"]
+                   if settings.local_vision_enabled else
+                   ["Technical preview-frame heuristics only", "Eye-state and landmark models not implemented"])
+    scores = [item["highlight_score"] for item in features]
+    story_groups = {item.get("story_group") for item in features if item.get("story_group")}
+    return ProjectAnalysis(provider=provider, result={
+        "schema_version": 1, "provider": provider, "asset_features": features,
         "privacy": {"media_bytes_used": True, "processing": "local_only", "external_transfers": False},
-        "summary": {"asset_count": len(features), "review_count": sum(not item["quality"]["usable"] for item in features)},
-        "limitations": ["Technical preview-frame heuristics only", "Eye-state and landmark models not implemented"],
+        "summary": {"asset_count": len(features), "scene_count": len(story_groups) or len(features),
+                    "average_highlight_score": round(sum(scores) / len(scores), 3),
+                    "subjects_detected": sum(item["subject"]["presence"] == "likely_human" for item in features),
+                    "review_count": sum(not item["quality"]["usable"] or
+                                        (item.get("semantic") or {}).get("needs_review", False) for item in features)},
+        "limitations": limitations,
     })

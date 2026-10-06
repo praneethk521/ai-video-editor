@@ -1,7 +1,7 @@
 # Local Trip Demo
 
 This app runs on this laptop. Google Photos import is implemented and awaits a
-real owner-album acceptance run; semantic selection is still being built. See
+real owner-album acceptance run; local semantic selection has a working baseline. See
 `status.md`. No AWS or public website is needed.
 
 ## Start the Local Runtime
@@ -28,20 +28,31 @@ before using personal media. Do not expose these services to a network.
 
 1. Open http://localhost:3001/ and enter the API URL and local bearer token.
 2. Enter a project name and click New. Select local photos/videos and Upload.
-3. Analyze. Actual staged bytes are inspected locally; no cloud AI call occurs.
+3. Analyze. Actual staged bytes are inspected by technical checks and the local
+   Ollama vision model; no cloud AI call occurs.
 4. Review plans and Selection decisions. Change duration targets and Regenerate
    when needed, then approve both formats and Render.
 5. Status polls during rendering. Under Outputs, Preview fetches the video using
    authentication; Download MP4 saves it locally. No credentials enter URLs.
 
-Current curation is technical-quality screening, not semantic AI. Low-detail,
-dark/bright items are withheld for future manual review; noisy photos can fool
-sharpness metrics. Near-duplicate grouping is conservative whole-image comparison.
-Eyes, identity, landmarks, storytelling, face-aware crop, music and transitions
-are not implemented. All-low-quality input currently returns a review-required
-error; a manual override UI is still pending. Keep originals unchanged.
+Current curation combines technical quality with strict local-model evidence for
+scene, people, eyes, occlusion, points of interest and story diversity. The model
+never performs identity recognition; uncertain faces and unverified landmark
+hints remain review items. Robust portrait/closed-eye and multi-frame video
+acceptance, face-aware crop, music and transitions remain. All-low-quality input
+returns a review-required error; a manual override UI is still pending. Keep
+originals unchanged.
 
 ## Repeat the Yellowstone Acceptance Run
+
+Install the local semantic model once before analyzing media:
+
+```bash
+./scripts/setup-local-vision.sh
+```
+
+See [LOCAL_VISION.md](LOCAL_VISION.md) for its private data path, evidence
+contract and limitations.
 
 With Python and API dependencies installed:
 

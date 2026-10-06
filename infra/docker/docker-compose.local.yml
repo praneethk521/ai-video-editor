@@ -29,6 +29,9 @@ services:
       DATABASE_URL: sqlite+pysqlite:////tmp/ai-video-editor/local.sqlite3
       REDIS_URL: redis://redis:6379/0
       CLAMAV_HOST: clamav
+      LOCAL_VISION_ENABLED: "true"
+      LOCAL_VISION_URL: http://host.docker.internal:11434
+      LOCAL_VISION_MODEL: qwen2.5vl:7b
       MAX_UPLOAD_BYTES: "104857600"
       OUTPUT_STORAGE_PROVIDER: local_private
       MEDIA_SOURCE_ROOT: /tmp/ai-video-editor/sources
