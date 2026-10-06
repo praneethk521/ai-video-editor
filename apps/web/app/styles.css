@@ -658,9 +658,12 @@ input[type="file"] { max-width: 100%; min-width: 0; }
 .selectionTitle strong { overflow-wrap: anywhere; }
 .selectionTitle span, .decisionReasons { color: var(--muted); font-size: 12px; }
 .decisionReasons { overflow-wrap: anywhere; }
+.duplicateNote { padding: 6px 8px; border-left: 3px solid var(--warning); background: var(--warning-soft); color: #654500; font-size: 12px; }
 .decisionToggles { display: flex; flex-wrap: wrap; gap: 16px; }
 .decisionToggles label { display: inline-flex; grid-template-columns: none; flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
 .decisionToggles input { width: 17px; height: 17px; margin: 0; }
+.orderControls { display: inline-flex; gap: 4px; }
+button.iconButton { flex: 0 0 30px; width: 30px; min-height: 30px; padding: 6px; }
 .trimFields { display: grid; grid-template-columns: repeat(2, minmax(72px, 120px)); gap: 8px; }
 .photosPanel { align-content: start; }
 .consentRow { display: grid; grid-template-columns: 18px 1fr; align-items: start; gap: 10px; }

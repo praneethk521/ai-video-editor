@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  ArrowDown,
+  ArrowUp,
   CheckCircle2,
   Clapperboard,
   Download,
@@ -47,6 +49,7 @@ type TimelinePlanBody = {
       status: string;
       reasons: string[];
       score: number;
+      alternative_to?: string;
       start?: number;
       duration?: number;
       pinned?: boolean;
@@ -542,6 +545,17 @@ export default function Page() {
         decision.asset_id === assetId ? { ...decision, ...patch } : decision
       )
     }));
+  }
+
+  function moveDecision(planId: string, assetId: string, offset: -1 | 1) {
+    setPlanEdits((current) => {
+      const decisions = [...(current[planId] ?? [])];
+      const index = decisions.findIndex((decision) => decision.asset_id === assetId);
+      const target = index + offset;
+      if (index < 0 || target < 0 || target >= decisions.length) return current;
+      [decisions[index], decisions[target]] = [decisions[target], decisions[index]];
+      return { ...current, [planId]: decisions };
+    });
   }
 
   async function savePlan(planId: string) {
@@ -1054,10 +1068,10 @@ export default function Page() {
                   <p>{plan.plan.strategy?.hook ?? "Timeline strategy pending."}</p>
                   {plan.plan.selection && plan.status !== "rejected" ? <details className="selectionReview" open={plan.status === "draft"}>
                     <summary>Review media ({edits.filter((item) => item.selected || item.pinned).length} selected · {selectedDuration.toFixed(1)}s)</summary>
-                    <div className="selectionGrid">{plan.plan.selection.decisions.map((decision) => {
+                    <div className="selectionGrid">{edits.map((edit, decisionIndex) => {
+                      const decision = plan.plan.selection?.decisions.find((item) => item.asset_id === edit.asset_id);
+                      if (!decision) return null;
                       const asset = mediaById[decision.asset_id];
-                      const edit = edits.find((item) => item.asset_id === decision.asset_id);
-                      if (!edit) return null;
                       const isImage = asset?.mime_type.startsWith("image/") ?? false;
                       return <article className={`selectionItem ${edit.selected || edit.pinned ? "included" : "excluded"}`} key={decision.asset_id}>
                         <div className="selectionThumb">
@@ -1072,12 +1086,23 @@ export default function Page() {
                             <span>{Math.round(decision.score * 100)}%</span>
                           </div>
                           <span className="decisionReasons">{decision.reasons.map((reason) => reason.replaceAll("_", " ")).join(" · ")}</span>
+                          {decision.alternative_to ? <span className="duplicateNote">
+                            Alternative to {mediaById[decision.alternative_to]?.filename ?? "another similar item"}
+                          </span> : null}
                           <div className="decisionToggles">
                             <label><input type="checkbox" checked={edit.selected || edit.pinned}
                               onChange={(event) => updateDecision(plan.id, decision.asset_id, { selected: event.target.checked, pinned: event.target.checked ? edit.pinned : false })} /> Include</label>
                             <label><input type="checkbox" checked={edit.pinned}
                               onChange={(event) => updateDecision(plan.id, decision.asset_id, { pinned: event.target.checked, selected: event.target.checked || edit.selected })} />
                               <Pin size={13} /> Pin</label>
+                            <div className="orderControls" aria-label="Clip order">
+                              <button className="ghost iconButton" title="Move earlier" aria-label={`Move ${asset?.filename ?? "media"} earlier`}
+                                disabled={decisionIndex === 0 || !(edit.selected || edit.pinned)}
+                                onClick={() => moveDecision(plan.id, decision.asset_id, -1)}><ArrowUp size={14} /></button>
+                              <button className="ghost iconButton" title="Move later" aria-label={`Move ${asset?.filename ?? "media"} later`}
+                                disabled={decisionIndex === edits.length - 1 || !(edit.selected || edit.pinned)}
+                                onClick={() => moveDecision(plan.id, decision.asset_id, 1)}><ArrowDown size={14} /></button>
+                            </div>
                           </div>
                           {edit.selected || edit.pinned ? <div className="trimFields">
                             <label>Start<input type="number" min={0} max={Math.max(0, (asset?.duration_seconds ?? 3) - 0.1)} step={0.1}

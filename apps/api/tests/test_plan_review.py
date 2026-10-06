@@ -112,6 +112,23 @@ def test_owner_review_rejects_incomplete_or_invalid_trims(client, auth_headers, 
     assert "trim exceeds source duration" in overflow.json()["detail"]
 
 
+def test_owner_review_persists_clip_order(client, auth_headers, db_session):
+    project_id, assets, plan = add_review_fixture(client, auth_headers, db_session)
+    response = client.patch(
+        f"/projects/{project_id}/plans/{plan.id}",
+        headers=auth_headers,
+        json={"decisions": [
+            {"asset_id": assets[1].id, "selected": True, "start": 1, "duration": 3},
+            {"asset_id": assets[0].id, "selected": True, "start": 0, "duration": 3},
+        ]},
+    )
+
+    assert response.status_code == 200
+    clips = response.json()["plan"]["tracks"][0]["clips"]
+    assert [clip["asset_id"] for clip in clips] == [assets[1].id, assets[0].id]
+    assert [clip["timeline_start"] for clip in clips] == [0.0, 3.0]
+
+
 def test_media_list_and_thumbnail_are_project_scoped(client, auth_headers, db_session, monkeypatch):
     project_id, assets, _ = add_review_fixture(client, auth_headers, db_session)
     listing = client.get(f"/projects/{project_id}/media", headers=auth_headers)

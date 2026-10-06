@@ -15,8 +15,8 @@ multi-frame semantic video scoring and large-album measurements remain.
 
 Current gate status: L1-L2 are working baselines, L3 is implemented pending a
 real owner OAuth run, L4 is a validated scenic baseline, L5 has authenticated
-thumbnail review with include, exclude, pin and trim overrides, and L6 remains
-partial. Duplicate comparison/reordering and large-album acceptance are next.
+thumbnail review with include, exclude, pin, ordering and trim overrides, and L6
+remains partial. Duplicate comparison and large-album acceptance are next.
 See `status.md` for the exact acceptance evidence.
 
 ## M0 - Secure Foundation
