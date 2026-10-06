@@ -14,13 +14,14 @@ def test_allowed_cors_preflight_returns_explicit_origin(monkeypatch):
             "/auth/me",
             headers={
                 "Origin": "https://dashboard.example.test",
-                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Method": "PATCH",
                 "Access-Control-Request-Headers": "authorization",
             },
         )
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "https://dashboard.example.test"
+    assert "PATCH" in response.headers["access-control-allow-methods"]
     assert "authorization" in response.headers["access-control-allow-headers"].lower()
 
 

@@ -38,9 +38,10 @@ before using personal media. Do not expose these services to a network.
 Current curation combines technical quality with strict local-model evidence for
 scene, people, eyes, occlusion, points of interest and story diversity. The model
 never performs identity recognition; uncertain faces and unverified landmark
-hints remain review items. Robust portrait/closed-eye and multi-frame video
-acceptance, face-aware crop, music and transitions remain. All-low-quality input
-returns a review-required error; a manual override UI is still pending. Keep
+hints remain review items. The dashboard now loads authenticated thumbnails and
+persists include, exclude, pin and trim overrides before approval. Robust
+portrait/closed-eye and multi-frame video acceptance, duplicate comparison,
+all-low-quality recovery, face-aware crop, music and transitions remain. Keep
 originals unchanged.
 
 ## Repeat the Yellowstone Acceptance Run

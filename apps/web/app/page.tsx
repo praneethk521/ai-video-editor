@@ -10,8 +10,10 @@ import {
   GitBranch,
   Loader2,
   Play,
+  Pin,
   Plus,
   RefreshCw,
+  Save,
   ShieldCheck,
   Trash2,
   UploadCloud,
@@ -37,9 +39,18 @@ type TimelineTrack = {
 
 type TimelinePlanBody = {
   selection?: {
+    method?: string;
     target_seconds: number;
     duration_seconds: number;
-    decisions: Array<{ asset_id: string; status: string; reasons: string[]; score: number }>;
+    decisions: Array<{
+      asset_id: string;
+      status: string;
+      reasons: string[];
+      score: number;
+      start?: number;
+      duration?: number;
+      pinned?: boolean;
+    }>;
   };
   tracks?: TimelineTrack[];
   strategy?: {
@@ -52,6 +63,22 @@ type TimelinePlanBody = {
     height?: number;
     fps?: number;
   };
+};
+
+type MediaAsset = {
+  id: string;
+  filename: string;
+  mime_type: string;
+  duration_seconds: number;
+  orientation: string;
+};
+
+type DecisionEdit = {
+  asset_id: string;
+  selected: boolean;
+  pinned: boolean;
+  start: number;
+  duration: number;
 };
 
 type PhotosStatus = {
@@ -259,6 +286,10 @@ export default function Page() {
   const [projectId, setProjectId] = useState("");
   const [status, setStatus] = useState<ProjectStatus | null>(null);
   const [plans, setPlans] = useState<TimelinePlan[]>([]);
+  const [media, setMedia] = useState<MediaAsset[]>([]);
+  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+  const [planEdits, setPlanEdits] = useState<Record<string, DecisionEdit[]>>({});
+  const thumbnailUrls = useRef<Record<string, string>>({});
   const [landscapeTarget, setLandscapeTarget] = useState(90);
   const [portraitTarget, setPortraitTarget] = useState(30);
   const [outputs, setOutputs] = useState<OutputVideo[]>([]);
@@ -321,11 +352,16 @@ export default function Page() {
     return () => {
       Object.values(previewUrls.current).forEach((url) => URL.revokeObjectURL(url));
       previewUrls.current = {};
+      Object.values(thumbnailUrls.current).forEach((url) => URL.revokeObjectURL(url));
+      thumbnailUrls.current = {};
     };
   }, [projectId, apiToken, apiBase]);
 
   useEffect(() => {
     setPreviews({});
+    setThumbnails({});
+    setMedia([]);
+    setPlanEdits({});
   }, [projectId, apiToken, apiBase]);
 
   useEffect(() => {
@@ -354,6 +390,7 @@ export default function Page() {
 
   const approvedCount = useMemo(() => plans.filter((plan) => plan.status === "approved").length, [plans]);
   const draftCount = useMemo(() => plans.filter((plan) => plan.status === "draft").length, [plans]);
+  const mediaById = useMemo(() => Object.fromEntries(media.map((asset) => [asset.id, asset])), [media]);
   const latestAnalysis = analysisResults[0];
   const canView = allowsRole(projectRole, "viewer");
   const canReview = allowsRole(projectRole, "reviewer");
@@ -418,7 +455,7 @@ export default function Page() {
 
   async function refreshOverview() {
     await run("Project overview refreshed", async () => {
-      await Promise.all([refreshStatus(), refreshUsage(), refreshPlans(), refreshOutputs(), loadPhotos()]);
+      await Promise.all([refreshStatus(), refreshUsage(), refreshPlans(), refreshMedia(), refreshOutputs(), loadPhotos()]);
     });
   }
 
@@ -465,6 +502,56 @@ export default function Page() {
     if (!targetProjectId) return;
     const response = await api<{ plans: TimelinePlan[] }>(`/projects/${targetProjectId}/plans`);
     setPlans(response.plans);
+    setReviewNotes(Object.fromEntries(response.plans.map((plan) => [plan.id, plan.review_notes ?? ""])));
+    setPlanEdits(Object.fromEntries(response.plans.map((plan) => [plan.id, (plan.plan.selection?.decisions ?? []).map((decision) => {
+      const clip = plan.plan.tracks?.find((track) => track.type === "video")?.clips.find(
+        (candidate) => candidate.asset_id === decision.asset_id
+      );
+      return {
+        asset_id: decision.asset_id,
+        selected: decision.status === "selected",
+        pinned: decision.pinned ?? false,
+        start: decision.start ?? clip?.start ?? 0,
+        duration: decision.duration ?? (clip ? clip.end - clip.start : 3)
+      };
+    })])));
+  }
+
+  async function refreshMedia(targetProjectId = projectId) {
+    if (!targetProjectId) return;
+    const response = await api<{ media: MediaAsset[] }>(`/projects/${targetProjectId}/media`);
+    setMedia(response.media);
+    const missing = response.media.filter((asset) => !thumbnailUrls.current[asset.id]);
+    for (let offset = 0; offset < missing.length; offset += 4) {
+      await Promise.all(missing.slice(offset, offset + 4).map(async (asset) => {
+        const response = await fetch(
+          `${apiBase.replace(/\/$/, "")}/projects/${targetProjectId}/media/${asset.id}/thumbnail`,
+          { headers: { Authorization: `Bearer ${apiToken}` } }
+        );
+        if (!response.ok) return;
+        thumbnailUrls.current[asset.id] = URL.createObjectURL(await response.blob());
+      }));
+      setThumbnails({ ...thumbnailUrls.current });
+    }
+  }
+
+  function updateDecision(planId: string, assetId: string, patch: Partial<DecisionEdit>) {
+    setPlanEdits((current) => ({
+      ...current,
+      [planId]: (current[planId] ?? []).map((decision) =>
+        decision.asset_id === assetId ? { ...decision, ...patch } : decision
+      )
+    }));
+  }
+
+  async function savePlan(planId: string) {
+    await run("Selection review saved", async () => {
+      await api(`/projects/${projectId}/plans/${planId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ decisions: planEdits[planId], notes: reviewNotes[planId] || null })
+      });
+      await Promise.all([refreshPlans(), refreshStatus()]);
+    });
   }
 
   async function refreshAnalysis(targetProjectId = projectId) {
@@ -945,8 +1032,11 @@ export default function Page() {
                 <label>Vertical target (seconds)<input type="number" min={15} max={60} value={portraitTarget}
                   onChange={(event) => setPortraitTarget(Number(event.target.value))} /></label>
               </div>
-              {plans.map((plan) => (
-                <article className="planCard" key={plan.id}>
+              {plans.map((plan) => {
+                const edits = planEdits[plan.id] ?? [];
+                const selectedDuration = edits.filter((item) => item.selected || item.pinned)
+                  .reduce((total, item) => total + Number(item.duration || 0), 0);
+                return <article className="planCard" key={plan.id}>
                   <div className="planTopline">
                     <div>
                       <strong>{variantLabel(plan.variant)}</strong>
@@ -962,7 +1052,45 @@ export default function Page() {
                     <span>{plan.plan.export?.fps ?? 30} fps</span>
                   </div>
                   <p>{plan.plan.strategy?.hook ?? "Timeline strategy pending."}</p>
-                  {plan.plan.selection ? <details>
+                  {plan.plan.selection && plan.status !== "rejected" ? <details className="selectionReview" open={plan.status === "draft"}>
+                    <summary>Review media ({edits.filter((item) => item.selected || item.pinned).length} selected · {selectedDuration.toFixed(1)}s)</summary>
+                    <div className="selectionGrid">{plan.plan.selection.decisions.map((decision) => {
+                      const asset = mediaById[decision.asset_id];
+                      const edit = edits.find((item) => item.asset_id === decision.asset_id);
+                      if (!edit) return null;
+                      const isImage = asset?.mime_type.startsWith("image/") ?? false;
+                      return <article className={`selectionItem ${edit.selected || edit.pinned ? "included" : "excluded"}`} key={decision.asset_id}>
+                        <div className="selectionThumb">
+                          {thumbnails[decision.asset_id]
+                            ? <img src={thumbnails[decision.asset_id]} alt="" />
+                            : <div className="thumbnailPlaceholder"><FileVideo size={22} /></div>}
+                          {asset?.mime_type.startsWith("video/") ? <span className="mediaType">Video</span> : null}
+                        </div>
+                        <div className="selectionBody">
+                          <div className="selectionTitle">
+                            <strong>{asset?.filename ?? decision.asset_id}</strong>
+                            <span>{Math.round(decision.score * 100)}%</span>
+                          </div>
+                          <span className="decisionReasons">{decision.reasons.map((reason) => reason.replaceAll("_", " ")).join(" · ")}</span>
+                          <div className="decisionToggles">
+                            <label><input type="checkbox" checked={edit.selected || edit.pinned}
+                              onChange={(event) => updateDecision(plan.id, decision.asset_id, { selected: event.target.checked, pinned: event.target.checked ? edit.pinned : false })} /> Include</label>
+                            <label><input type="checkbox" checked={edit.pinned}
+                              onChange={(event) => updateDecision(plan.id, decision.asset_id, { pinned: event.target.checked, selected: event.target.checked || edit.selected })} />
+                              <Pin size={13} /> Pin</label>
+                          </div>
+                          {edit.selected || edit.pinned ? <div className="trimFields">
+                            <label>Start<input type="number" min={0} max={Math.max(0, (asset?.duration_seconds ?? 3) - 0.1)} step={0.1}
+                              disabled={isImage} value={edit.start}
+                              onChange={(event) => updateDecision(plan.id, decision.asset_id, { start: Number(event.target.value) })} /></label>
+                            <label>Seconds<input type="number" min={0.5} max={Math.min(8, asset?.duration_seconds ?? 8)} step={0.5}
+                              value={edit.duration}
+                              onChange={(event) => updateDecision(plan.id, decision.asset_id, { duration: Number(event.target.value) })} /></label>
+                          </div> : null}
+                        </div>
+                      </article>;
+                    })}</div>
+                  </details> : plan.plan.selection ? <details>
                     <summary>Selection decisions ({plan.plan.selection.decisions.length})</summary>
                     <ul className="selectionDecisions">{plan.plan.selection.decisions.map((decision, index) => (
                       <li key={decision.asset_id}><strong>Media {index + 1}: {decision.status}</strong>
@@ -975,6 +1103,9 @@ export default function Page() {
                     placeholder="Review notes"
                   />
                   <div className="buttonRow">
+                    {plan.plan.selection && plan.status !== "rejected" ? <button className="ghost" onClick={() => void savePlan(plan.id)} disabled={busy !== null || !canReview}>
+                      <Save size={16} /> Save review
+                    </button> : null}
                     <button className="approve" onClick={() => void approve(plan.id)} disabled={busy !== null || !canReview}>
                       <CheckCircle2 size={16} />
                       Approve
@@ -985,7 +1116,7 @@ export default function Page() {
                     </button>
                   </div>
                 </article>
-              ))}
+              })}
               {plans.length === 0 ? <div className="emptyState">No plans loaded</div> : null}
             </div>
           </div>

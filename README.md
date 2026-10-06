@@ -6,7 +6,8 @@ curation, timeline review, rendering, and playback. GitHub hosts code, not the a
 **Current readiness (2026-10-06): local rendering and semantic curation demonstrated; Google Photos transport implemented.**
 The Yellowstone demo produced real videos. Google Photos Picker import is ready
 for an owner OAuth acceptance run; the local vision model now supplies strict
-reviewable evidence, while detailed selection review remains release work. See the
+reviewable evidence, with authenticated thumbnail review and persisted manual
+selection overrides. Duplicate comparison and large-album acceptance remain. See the
 [authoritative PRD](docs/PRD_TRIP_VIDEO.md) and [current status](docs/status.md).
 Older cloud/Drive deployment references below are not the product's target.
 

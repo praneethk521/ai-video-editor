@@ -82,14 +82,15 @@ def test_render_timeline_returns_private_output_metadata():
     assert result["validation"]["status"] == "skipped"
 
 
-def test_worker_accepts_semantic_curation_selection_method():
+@pytest.mark.parametrize("method", ["local_semantic_curation_v1", "owner_reviewed_v1"])
+def test_worker_accepts_reviewed_selection_methods(method):
     plan = {
         "project_id": "project-1",
         "variant": "youtube_16x9",
         "version": 1,
         "confidence_score": 0.8,
         "selection": {
-            "method": "local_semantic_curation_v1",
+            "method": method,
             "target_seconds": 30,
             "duration_seconds": 3,
             "decisions": [],

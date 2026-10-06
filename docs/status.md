@@ -18,14 +18,14 @@ AWS, hosted websites, Kubernetes and cloud deployment are out of scope.
 | L2 Curation foundation | Implemented, limited | Local decoded-frame sharpness/exposure heuristics, exact/conservative near-duplicate grouping, bounded quality selection, sampled video start, reasons, target-duration regeneration, approval invalidation. Not a semantic model. |
 | L3 Google Photos | Implemented; live consent pending | Project-scoped OAuth with PKCE/one-use state, encrypted token/session state, refresh, Picker create/poll/delete, pagination, trusted-host byte downloads, one-item resumable scan/staging, skip/cancel/revoke, progress UI and tests. Needs owner OAuth credentials and a real album acceptance run. |
 | L4 Local semantic model | Working local baseline | Ollama `qwen2.5vl:7b` runs locally through a loopback-only strict schema; confidence downgrades, eye/occlusion review, POI evidence, technical/editorial scoring and semantic story diversity are integrated. Needs portrait/closed-eye fixtures, multi-frame semantic video scoring and large-album performance validation. |
-| L5 Selection review | Partial | Duration controls, decision reasons and plan approval exist. Thumbnails, duplicate comparison, per-item override/trim, and all-low-quality review remain. |
+| L5 Selection review | Working local baseline | Authenticated thumbnails, include/exclude/pin controls, bounded trims, owner reasons, timeline rebuilding and approval invalidation work end to end. Side-by-side duplicate comparison, reordering and all-low-quality recovery remain. |
 | L6 Laptop acceptance | Partial | Yellowstone pipeline works; no real private Photos album or 500-file media workload tested. Phone formats/HDR, resumability/cancellation and disk limits remain. |
 
 ## Current Validation
 
-- API suite: 107 passed. Worker suite: 11 passed in the host environment; three
+- API suite: 110 passed. Worker suite: 12 passed in the host environment; three
   real FFmpeg tests are skipped there because FFmpeg is supplied by the worker
-  container. The current container-backed run passed all 14, including real
+  container. The current container-backed run passed all 15, including real
   image/video/audio rendering and black/corrupt-output rejection.
 - Ruff, TypeScript and Next.js production build pass. Desktop video decodes and
   the selection/duration UI fits a 390px mobile viewport without horizontal overflow.
@@ -35,6 +35,10 @@ AWS, hosted websites, Kubernetes and cloud deployment are out of scope.
   Waterfall trim starts at
   29.33s based on sampled technical quality. All six photos remain because the
   small sample has no detected duplicate/quality exclusion and fits the budget.
+- Browser acceptance then excluded the weakest geothermal still, pinned the
+  waterfall, shortened it to six seconds, invalidated and renewed approval, and
+  produced a validated 21s owner-reviewed landscape export. Private thumbnails
+  are fetched with authorization and object URLs; credentials never enter URLs.
 - Outputs, plans and report: ignored `outputs/Yellowstone/<project-id>/`.
 - The 7B local model analyzed all seven Yellowstone assets in about 36 seconds through
   the real Docker-to-Ollama path: four story groups, two distant-person review
@@ -60,8 +64,8 @@ AWS, hosted websites, Kubernetes and cloud deployment are out of scope.
    scopes as Photos authorization or make albums public.
 2. Validate the local model on portrait/open-eye/closed-eye/occlusion fixtures,
    add multi-frame semantic video scoring, and benchmark/cache a large album.
-3. Build thumbnail/duplicate review, include/exclude/pin and trim overrides;
-   preserve uncertain/low-quality memories for manual decisions.
+3. Add side-by-side duplicate comparison, drag ordering and an all-low-quality
+   recovery path while preserving uncertain memories for manual decisions.
 4. Queue/cache analysis, resume/cancel imports, enforce total disk quotas; test
    phone formats, rotation/HDR and a large mixed album on this laptop.
 5. Finish local startup/backup/cleanup UX and owner-approved trip acceptance.

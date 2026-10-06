@@ -129,6 +129,31 @@ class TimelinePlansResponse(BaseModel):
     plans: list[TimelinePlanRead]
 
 
+class MediaAssetRead(BaseModel):
+    id: str
+    filename: str
+    mime_type: str
+    duration_seconds: float
+    orientation: str
+
+
+class MediaAssetsResponse(BaseModel):
+    media: list[MediaAssetRead]
+
+
+class PlanDecisionUpdate(BaseModel):
+    asset_id: str = Field(min_length=1, max_length=64)
+    selected: bool
+    pinned: bool = False
+    start: float = Field(default=0, ge=0)
+    duration: float = Field(default=3, gt=0, le=8)
+
+
+class PlanUpdateRequest(BaseModel):
+    decisions: list[PlanDecisionUpdate] = Field(min_length=1, max_length=500)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
 class PlanReviewRequest(BaseModel):
     notes: str | None = Field(default=None, max_length=2000)
 

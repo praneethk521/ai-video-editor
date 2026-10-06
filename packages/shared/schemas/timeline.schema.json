@@ -15,7 +15,7 @@
       "required": ["method", "target_seconds", "duration_seconds", "decisions", "limitations"],
       "additionalProperties": false,
       "properties": {
-        "method": { "type": "string", "enum": ["local_technical_quality_v1", "local_semantic_curation_v1"] },
+        "method": { "type": "string", "enum": ["local_technical_quality_v1", "local_semantic_curation_v1", "owner_reviewed_v1"] },
         "target_seconds": { "type": "number", "minimum": 1, "maximum": 300 },
         "duration_seconds": { "type": "number", "minimum": 0, "maximum": 300 },
         "decisions": { "type": "array", "maxItems": 500, "items": { "type": "object" } },

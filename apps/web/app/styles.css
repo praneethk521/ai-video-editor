@@ -645,9 +645,32 @@ input[type="file"] { max-width: 100%; min-width: 0; }
 .selectionDecisions { padding-left: 20px; max-height: 280px; overflow: auto; }
 .selectionDecisions li { margin: 8px 0; overflow-wrap: anywhere; }
 .selectionDecisions span { display: block; font-size: 13px; color: #53615b; }
+.selectionReview summary { cursor: pointer; font-weight: 800; }
+.selectionGrid { display: grid; margin-top: 12px; border-top: 1px solid var(--line); }
+.selectionItem { display: grid; grid-template-columns: 144px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.selectionItem.excluded { opacity: 0.62; }
+.selectionThumb { position: relative; width: 144px; aspect-ratio: 3 / 2; overflow: hidden; background: #101820; }
+.selectionThumb img { width: 100%; height: 100%; display: block; object-fit: contain; }
+.thumbnailPlaceholder { width: 100%; height: 100%; display: grid; place-items: center; color: #b9c5cf; }
+.mediaType { position: absolute; right: 6px; bottom: 6px; padding: 3px 6px; background: rgba(16, 24, 32, 0.84); color: #fff; font-size: 11px; font-weight: 800; }
+.selectionBody { min-width: 0; display: grid; align-content: start; gap: 8px; }
+.selectionTitle { display: flex; justify-content: space-between; gap: 10px; }
+.selectionTitle strong { overflow-wrap: anywhere; }
+.selectionTitle span, .decisionReasons { color: var(--muted); font-size: 12px; }
+.decisionReasons { overflow-wrap: anywhere; }
+.decisionToggles { display: flex; flex-wrap: wrap; gap: 16px; }
+.decisionToggles label { display: inline-flex; grid-template-columns: none; flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
+.decisionToggles input { width: 17px; height: 17px; margin: 0; }
+.trimFields { display: grid; grid-template-columns: repeat(2, minmax(72px, 120px)); gap: 8px; }
 .photosPanel { align-content: start; }
 .consentRow { display: grid; grid-template-columns: 18px 1fr; align-items: start; gap: 10px; }
 .consentRow input { width: 18px; height: 18px; margin: 2px 0 0; }
 .actionLink { display: inline-flex; width: fit-content; align-items: center; gap: 6px; color: #145c4b; font-weight: 700; }
 .photosProgress, .errorNotice { display: grid; gap: 4px; padding: 12px; border: 1px solid #c9d8d2; background: #eef6f2; }
 .errorNotice { border-color: #e4bdb6; background: #fff0ed; }
+
+@media (max-width: 560px) {
+  .selectionItem { grid-template-columns: 96px minmax(0, 1fr); }
+  .selectionThumb { width: 96px; }
+  .trimFields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

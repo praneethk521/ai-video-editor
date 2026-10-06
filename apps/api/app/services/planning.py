@@ -78,6 +78,112 @@ def reject_timeline_plan(db: Session, *, project_id: str, plan_id: str, notes: s
     return plan
 
 
+def update_timeline_plan(
+    db: Session,
+    *,
+    project_id: str,
+    plan_id: str,
+    decisions: list[dict],
+    notes: str | None,
+) -> TimelinePlan:
+    plan = get_project_plan(db, project_id=project_id, plan_id=plan_id)
+    selection = plan.plan_json.get("selection")
+    if not selection:
+        raise ValueError("timeline plan does not support selection review")
+    existing = {item["asset_id"]: item for item in selection.get("decisions", [])}
+    supplied_ids = [item["asset_id"] for item in decisions]
+    if len(supplied_ids) != len(set(supplied_ids)) or set(supplied_ids) != set(existing):
+        raise ValueError("selection review must contain each plan asset exactly once")
+    assets = {
+        asset.id: asset
+        for asset in db.query(MediaAsset).filter(
+            MediaAsset.project_id == project_id,
+            MediaAsset.id.in_(supplied_ids),
+        )
+    }
+    if set(assets) != set(existing):
+        raise ValueError("selection review contains unavailable media")
+
+    reviewed = []
+    selected = []
+    total = 0.0
+    old_clips = {
+        clip["asset_id"]: clip
+        for track in plan.plan_json.get("tracks", [])
+        if track.get("type") == "video"
+        for clip in track.get("clips", [])
+    }
+    for item in decisions:
+        asset = assets[item["asset_id"]]
+        is_selected = bool(item["selected"] or item.get("pinned"))
+        start = round(float(item["start"]), 2)
+        duration = round(float(item["duration"]), 2)
+        source_duration = float(asset.duration_seconds or 3)
+        if asset.mime_type.startswith("image/"):
+            start = 0.0
+        elif start + duration > source_duration + 1e-8:
+            raise ValueError(f"trim exceeds source duration for {asset.original_filename}")
+        reasons = [reason for reason in existing[item["asset_id"]].get("reasons", [])
+                   if not reason.startswith("owner_")]
+        reasons.append("owner_pinned" if item.get("pinned") else
+                       "owner_included" if is_selected else "owner_excluded")
+        decision = {
+            **existing[item["asset_id"]],
+            "status": "selected" if is_selected else "excluded",
+            "reasons": list(dict.fromkeys(reasons)),
+            "pinned": bool(item.get("pinned")),
+        }
+        if is_selected:
+            decision.update(start=start, duration=duration)
+            selected.append((asset, decision, old_clips.get(asset.id, {})))
+            total += duration
+        else:
+            decision.pop("start", None)
+            decision.pop("duration", None)
+        reviewed.append(decision)
+    if not selected:
+        raise ValueError("selection review must include at least one media item")
+    if total > float(selection["target_seconds"]) + 1e-8:
+        raise ValueError("selected media exceeds the plan duration target")
+
+    timeline_start = 0.0
+    clips = []
+    for asset, decision, old_clip in selected:
+        duration = decision["duration"]
+        clips.append({
+            "asset_id": asset.id,
+            "start": decision["start"],
+            "end": round(decision["start"] + duration, 2),
+            "timeline_start": round(timeline_start, 2),
+            "effect": old_clip.get("effect", "cut"),
+            "caption": old_clip.get("caption", ""),
+            "crop_strategy": old_clip.get("crop_strategy", "center"),
+        })
+        timeline_start += duration
+
+    plan_json = dict(plan.plan_json)
+    plan_json["version"] = int(plan_json.get("version", 1)) + 1
+    plan_json["tracks"] = [{"type": "video", "clips": clips}]
+    plan_json["strategy"] = {
+        **(plan_json.get("strategy") or {}),
+        "hook": "Owner-reviewed local selection with explicit include, exclude, pin and trim decisions.",
+    }
+    plan_json["selection"] = {
+        **selection,
+        "method": "owner_reviewed_v1",
+        "duration_seconds": round(total, 2),
+        "decisions": reviewed,
+    }
+    plan.plan_json = plan_json
+    plan.status = PlanStatus.draft
+    plan.review_notes = notes
+    plan.approved_at = None
+    project = db.get(Project, project_id)
+    if project is not None:
+        project.status = ProjectStatus.planned
+    return plan
+
+
 def regenerate_timeline_plans(db: Session, *, project_id: str, variants: list[str], notes: str | None,
                              targets: dict | None = None) -> list[TimelinePlan]:
     assets = db.query(MediaAsset).filter(MediaAsset.project_id == project_id).order_by(MediaAsset.created_at, MediaAsset.id).all()

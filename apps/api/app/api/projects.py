@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -18,6 +18,8 @@ from app.schemas.api import (
     DriveSyncResponse,
     IngestRequest,
     IngestResponse,
+    MediaAssetRead,
+    MediaAssetsResponse,
     OutputResponse,
     OutputDeliverRequest,
     OutputRetentionCleanupRequest,
@@ -25,6 +27,7 @@ from app.schemas.api import (
     OutputRetentionReportResponse,
     PlanRegenerateRequest,
     PlanReviewRequest,
+    PlanUpdateRequest,
     MembershipRoleUpdate,
     ProjectCreate,
     ProjectMembershipRead,
@@ -42,7 +45,7 @@ from app.services.audit import audit
 from app.services.analysis_providers import AnalysisProviderError
 from app.services.authorization import project_role_for_user, role_allows
 from app.services.media import complete_drive_oauth, create_drive_connection, create_media_asset, sync_drive_folder
-from app.services.local_media import upload_local_media
+from app.services.local_media import media_thumbnail, upload_local_media
 from app.services.metrics import record_workflow_event
 from app.services.output_delivery import cleanup_due_delivered_output, deliver_output_video, record_output_delivery_failure, resolve_private_file_locator
 from app.services.planning import (
@@ -52,6 +55,7 @@ from app.services.planning import (
     list_timeline_plans,
     regenerate_timeline_plans,
     reject_timeline_plan,
+    update_timeline_plan,
 )
 from app.services.quotas import (
     ANALYSIS_REQUESTS,
@@ -199,6 +203,48 @@ def upload_media(project_id: str, request: Request, file: UploadFile,
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     finally:
         file.file.close()
+
+
+@router.get("/{project_id}/media", response_model=MediaAssetsResponse)
+def list_media(
+    project_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    get_project_for_role_or_404(db, project_id, user, "viewer", request, "media.list")
+    rows = (
+        db.query(MediaAsset)
+        .filter(MediaAsset.project_id == project_id)
+        .order_by(MediaAsset.created_at, MediaAsset.id)
+        .all()
+    )
+    return MediaAssetsResponse(media=[MediaAssetRead(
+        id=row.id,
+        filename=row.original_filename,
+        mime_type=row.mime_type,
+        duration_seconds=row.duration_seconds,
+        orientation=row.orientation,
+    ) for row in rows])
+
+
+@router.get("/{project_id}/media/{asset_id}/thumbnail")
+def get_media_thumbnail(
+    project_id: str,
+    asset_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    get_project_for_role_or_404(db, project_id, user, "viewer", request, "media.thumbnail.read")
+    asset = db.get(MediaAsset, asset_id)
+    if asset is None or asset.project_id != project_id or asset.malware_scan_status != "clean":
+        raise HTTPException(status_code=404, detail="clean media asset not found")
+    try:
+        thumbnail = media_thumbnail(asset)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(content=thumbnail, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=300"})
 
 
 @router.get("/{project_id}/outputs/{output_id}/download")
@@ -455,6 +501,45 @@ def approve_plan(
         metadata={"plan_id": plan_id, "variant": plan.variant},
     )
     db.commit()
+    return plan_to_response(plan)
+
+
+@router.patch("/{project_id}/plans/{plan_id}", response_model=TimelinePlanRead)
+def update_plan(
+    project_id: str,
+    plan_id: str,
+    payload: PlanUpdateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    get_project_for_role_or_404(
+        db, project_id, user, minimum_role="reviewer", request=request, requested_action="timeline.plan.update"
+    )
+    try:
+        plan = update_timeline_plan(
+            db,
+            project_id=project_id,
+            plan_id=plan_id,
+            decisions=[item.model_dump() for item in payload.decisions],
+            notes=payload.notes,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    audit(
+        db,
+        user_id=user.id,
+        project_id=project_id,
+        action="timeline.plan.updated",
+        correlation_id=request.state.correlation_id,
+        metadata={
+            "plan_id": plan_id,
+            "variant": plan.variant,
+            "selected_count": sum(item.selected or item.pinned for item in payload.decisions),
+        },
+    )
+    db.commit()
+    db.refresh(plan)
     return plan_to_response(plan)
 
 
