@@ -9,11 +9,10 @@ real owner-album acceptance run; local semantic selection has a working baseline
 From the repository root:
 
 ```bash
-docker compose -f infra/docker/docker-compose.local.yml up -d --build
-cd apps/web
-npm ci --ignore-scripts
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8001 npm run dev -- --hostname 127.0.0.1 --port 3001
+./scripts/start-local.sh
 ```
+
+For the shortest owner workflow, follow [USE_YOUR_TRIP.md](USE_YOUR_TRIP.md).
 
 Docker Desktop must be running. ClamAV's first signature download can take a few
 minutes. API is loopback-only on 8001; web is loopback-only on 3001. Redis/ClamAV

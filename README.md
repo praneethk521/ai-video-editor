@@ -3,11 +3,12 @@
 Laptop-only trip video editor for private Google Photos album import, local
 curation, timeline review, rendering, and playback. GitHub hosts code, not the app or media.
 
-**Current readiness (2026-10-06): local rendering and semantic curation demonstrated; Google Photos transport implemented.**
-The Yellowstone demo produced real videos. Google Photos Picker import is ready
-for an owner OAuth acceptance run; the local vision model now supplies strict
-reviewable evidence, with authenticated thumbnail review and persisted manual
-selection overrides. Duplicate comparison and large-album acceptance remain. See the
+**Current readiness (2026-10-06): usable local-file release; Google Photos transport implemented.**
+The Yellowstone demo and owner-review flow produced validated real videos. Start
+with `./scripts/start-local.sh` and follow [Make Your Trip Video](docs/USE_YOUR_TRIP.md).
+Google Photos Picker import is ready for an owner OAuth acceptance run; the local
+vision model supplies strict reviewable evidence, with authenticated thumbnail
+review and persisted manual selection overrides. See the
 [authoritative PRD](docs/PRD_TRIP_VIDEO.md) and [current status](docs/status.md).
 Older cloud/Drive deployment references below are not the product's target.
 
@@ -26,9 +27,14 @@ The repository is structured for secure deployment. The source code can live in 
 
 ## Local Quickstart
 
-Use [Local Trip Demo](docs/LOCAL_TRIP_DEMO.md) for the active laptop-only stack
-on ports 3001/8001 and the real Yellowstone workflow. The original general stack
-below is retained for reference, not required for local trip editing.
+For the active laptop-only editor on ports 3001/8001:
+
+```bash
+./scripts/start-local.sh
+```
+
+Follow [Make Your Trip Video](docs/USE_YOUR_TRIP.md). The original general stack
+below is retained for reference and is not required for local trip editing.
 
 1. Copy `.env.example` to `.env` and set `API_TOKEN`, `TOKEN_ENCRYPTION_KEY`, plus provider credentials.
 2. Start services:

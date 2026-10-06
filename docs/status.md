@@ -10,6 +10,11 @@ are different and optional. A curated short story, not an all-files montage, is
 the goal. See [PRD_TRIP_VIDEO.md](PRD_TRIP_VIDEO.md) for the complete contract.
 AWS, hosted websites, Kubernetes and cloud deployment are out of scope.
 
+The local-file owner workflow is the v1 release path. Scope is frozen for use:
+start, upload, analyze, review, approve, render, preview and download. Remaining
+items below are quality improvements or Google-account acceptance, not blockers
+for creating a trip video from files on this Mac.
+
 ## Active Progress
 
 | Gate | Status | Evidence / Remaining Work |
@@ -20,6 +25,9 @@ AWS, hosted websites, Kubernetes and cloud deployment are out of scope.
 | L4 Local semantic model | Working local baseline | Ollama `qwen2.5vl:7b` runs locally through a loopback-only strict schema; confidence downgrades, eye/occlusion review, POI evidence, technical/editorial scoring and semantic story diversity are integrated. Needs portrait/closed-eye fixtures, multi-frame semantic video scoring and large-album performance validation. |
 | L5 Selection review | Working local baseline | Authenticated thumbnails, include/exclude/pin controls, clip ordering, bounded trims, duplicate-alternative labels, owner reasons, timeline rebuilding and approval invalidation work end to end. Side-by-side duplicate comparison and all-low-quality recovery remain. |
 | L6 Laptop acceptance | Partial | Yellowstone pipeline works; no real private Photos album or 500-file media workload tested. Phone formats/HDR, resumability/cancellation and disk limits remain. |
+
+Release command: `./scripts/start-local.sh`. Owner instructions:
+[`USE_YOUR_TRIP.md`](USE_YOUR_TRIP.md).
 
 ## Current Validation
 
