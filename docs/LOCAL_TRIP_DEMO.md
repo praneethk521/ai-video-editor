@@ -1,7 +1,8 @@
 # Local Trip Demo
 
-This app runs on this laptop. Google Photos import and semantic selection are
-still being built; see `status.md`. No AWS or public website is needed.
+This app runs on this laptop. Google Photos import is implemented and awaits a
+real owner-album acceptance run; semantic selection is still being built. See
+`status.md`. No AWS or public website is needed.
 
 ## Start the Local Runtime
 
@@ -61,7 +62,23 @@ at 29.33s rather than taking only the opening footage.
 
 ## Google Photos Is Next
 
-An album URL is not authorization. Google's Picker requires OAuth and a user
-selection step, after which this app will download only selected media for local
-editing. Drive Connect/Sync is a separate legacy adapter, not Photos support.
-Do not publish an album or paste Google passwords into this application.
+Google Photos Picker import is implemented, but live consent needs a local Google
+OAuth client. In Google Cloud Console, enable **Google Photos Picker API**, create
+an OAuth web client, and register this exact redirect URI:
+
+```text
+http://localhost:8001/oauth/google-photos/callback
+```
+
+Generate a local Fernet key without printing it into Git-tracked files, then set
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `TOKEN_ENCRYPTION_KEY` in your
+ignored root `.env` or shell environment before starting Compose. A key can be
+generated with `python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'`.
+Restart the API, open a project, load Google Photos status, check the consent box,
+connect, complete Google consent, choose album media, and import it locally.
+
+An album URL is not authorization. Picker requires you to select the album media
+in Google's interface. Imports are resumable one item at a time, locally scanned,
+and limited to 500 items. Disconnect revokes the Google credential. Drive
+Connect/Sync is a separate legacy adapter. Never publish an album or paste a
+Google password into this application.

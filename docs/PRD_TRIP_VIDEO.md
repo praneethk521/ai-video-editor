@@ -1,6 +1,6 @@
 # Local Trip Video Editor: Product Requirements
 
-Updated 2026-10-05. Authoritative user scope; supersedes earlier montage-only
+Updated 2026-10-06. Authoritative user scope; supersedes earlier montage-only
 release and cloud-deployment assumptions in older documents.
 
 ## Product Contract
@@ -116,5 +116,8 @@ is a release gate before pushing code.
 
 Earlier Yellowstone HTTP upload -> ClamAV -> Redis/RQ -> FFmpeg -> private download
 completed with 26-second landscape and 21-second portrait outputs. These were
-all-input montages, not completion of this curation PRD. Current implementation,
-test results and next actions live in [status.md](status.md).
+all-input montages, not completion of this curation PRD. The L3 Picker transport,
+OAuth, encrypted state, private resumable ingest and dashboard flow are now
+implemented and unit-tested; L3 remains open until a real private album completes
+the workflow on this laptop. Current results and next actions live in
+[status.md](status.md).

@@ -17,6 +17,9 @@ def redact_sensitive(_, __, event_dict):
 
 def configure_logging() -> None:
     logging.basicConfig(format="%(message)s", stream=sys.stdout, level=logging.INFO)
+    # HTTP client URLs can contain Google Picker IDs and expiring media URLs.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     structlog.configure(
         processors=[
             redact_sensitive,
@@ -29,4 +32,3 @@ def configure_logging() -> None:
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
-

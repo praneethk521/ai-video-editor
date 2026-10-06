@@ -3,9 +3,10 @@
 Laptop-only trip video editor for private Google Photos album import, local
 curation, timeline review, rendering, and playback. GitHub hosts code, not the app or media.
 
-**Current readiness (2026-10-05): local rendering demonstrated; curated album workflow in development.**
-The Yellowstone demo produced real videos. Google Photos Picker import, local
-semantic selection and detailed selection review remain release work. See the
+**Current readiness (2026-10-06): local rendering demonstrated; Google Photos transport implemented.**
+The Yellowstone demo produced real videos. Google Photos Picker import is ready
+for an owner OAuth acceptance run; local semantic selection and detailed
+selection review remain release work. See the
 [authoritative PRD](docs/PRD_TRIP_VIDEO.md) and [current status](docs/status.md).
 Older cloud/Drive deployment references below are not the product's target.
 
@@ -43,6 +44,8 @@ docker compose -f infra/docker/docker-compose.yml up --build
 The current executable slice supports:
 
 - Create projects.
+- Authorize Google Photos Picker per project and resumably import selected photos
+  and videos through the same private malware-scan and media-probe path as local uploads.
 - Connect a private Google Drive folder record with least-privilege scope metadata.
 - Validate and register uploaded or Drive media assets.
 - Traverse connected Google Drive folders and skip duplicate media by checksum.
@@ -69,7 +72,8 @@ The current executable slice supports:
 ## Security Defaults
 
 - No real `.env` files are committed.
-- OAuth scope defaults to Google Drive read-only.
+- Google Photos uses only the Picker media-items read-only scope; the legacy
+  Google Drive adapter uses Drive read-only scopes separately.
 - Drive output delivery requires an OAuth token with write permission and a private output folder.
 - Public media URLs are rejected.
 - Filenames are sanitized and path traversal is blocked.

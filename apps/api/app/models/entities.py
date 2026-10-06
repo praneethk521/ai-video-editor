@@ -135,6 +135,18 @@ class OAuthConnection(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class PhotosConnection(Base):
+    __tablename__ = "photos_connections"
+
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), primary_key=True)
+    status: Mapped[str] = mapped_column(String(32), default="disconnected")
+    encrypted_data: Mapped[str] = mapped_column(Text)
+    state_hash: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, unique=True)
+    state_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class MediaAsset(Base):
     __tablename__ = "media_assets"
 

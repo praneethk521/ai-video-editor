@@ -54,6 +54,19 @@ type TimelinePlanBody = {
   };
 };
 
+type PhotosStatus = {
+  configured: boolean;
+  status: string;
+  missing?: string[];
+  picker_url?: string;
+  selected_count?: number;
+  processed_count?: number;
+  imported_count?: number;
+  skipped_count?: number;
+  error?: string;
+  poll_after_seconds?: number;
+};
+
 type TimelinePlan = {
   id: string;
   variant: string;
@@ -268,6 +281,34 @@ export default function Page() {
   const [uploadProgress, setUploadProgress] = useState("");
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const previewUrls = useRef<Record<string, string>>({});
+  const [photos, setPhotos] = useState<PhotosStatus | null>(null);
+  const [photosConsent, setPhotosConsent] = useState(false);
+  const [photosAuthUrl, setPhotosAuthUrl] = useState("");
+  const photosPaused = useRef(true);
+  const photosContext = useRef(0);
+
+  useEffect(() => {
+    photosContext.current += 1;
+    photosPaused.current = true;
+    setPhotos(null);
+    setPhotosAuthUrl("");
+    setPhotosConsent(false);
+    return () => { photosContext.current += 1; photosPaused.current = true; };
+  }, [projectId, apiToken, apiBase]);
+
+  useEffect(() => {
+    if (photos?.status !== "selecting" || photos.error || busy) return;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await api<PhotosStatus>(`/projects/${projectId}/photos/poll`, { method: "POST" });
+        if (!cancelled) setPhotos(result);
+      } catch {
+        if (!cancelled) setPhotos((value) => value ? { ...value, error: "Photos polling stopped; refresh or retry." } : value);
+      }
+    }, Math.max(1, photos.poll_after_seconds ?? 5) * 1000);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [photos, busy, projectId, apiToken, apiBase]);
 
   useEffect(() => {
     const existingProject = new URLSearchParams(window.location.search).get("project");
@@ -368,9 +409,53 @@ export default function Page() {
     setUsage(response);
   }
 
+  async function loadPhotos(targetProjectId = projectId) {
+    if (!targetProjectId || !canView) return;
+    setPhotos(await api<PhotosStatus>(`/projects/${targetProjectId}/photos`));
+  }
+
   async function refreshOverview() {
     await run("Project overview refreshed", async () => {
-      await Promise.all([refreshStatus(), refreshUsage(), refreshPlans(), refreshOutputs()]);
+      await Promise.all([refreshStatus(), refreshUsage(), refreshPlans(), refreshOutputs(), loadPhotos()]);
+    });
+  }
+
+  async function refreshPhotos() {
+    await run("Google Photos status refreshed", async () => {
+      await loadPhotos();
+    });
+  }
+
+  async function connectPhotos() {
+    if (!photosConsent) return;
+    await run("Google Photos authorization ready", async () => {
+      const result = await api<{ authorization_url: string }>(`/projects/${projectId}/photos/connect`, { method: "POST" });
+      setPhotosAuthUrl(result.authorization_url);
+      setPhotos(await api<PhotosStatus>(`/projects/${projectId}/photos`));
+    });
+  }
+
+  async function photosAction(action: string) {
+    await run(`Google Photos: ${action}`, async () => {
+      const result = await api<PhotosStatus>(`/projects/${projectId}/photos/${action}`, { method: "POST" });
+      setPhotos(result);
+      setPhotosAuthUrl("");
+      if (result.error) throw new Error(result.error);
+    });
+  }
+
+  async function importPhotos() {
+    const context = photosContext.current;
+    photosPaused.current = false;
+    await run("Google Photos import stopped", async () => {
+      while (!photosPaused.current && photosContext.current === context) {
+        const result = await api<PhotosStatus>(`/projects/${projectId}/photos/import-next`, { method: "POST" });
+        if (photosContext.current !== context) return;
+        setPhotos(result);
+        if (result.error) throw new Error(result.error);
+        if (result.status === "complete") break;
+      }
+      if (photosContext.current === context) await Promise.all([refreshStatus(), refreshPlans()]);
     });
   }
 
@@ -787,6 +872,56 @@ export default function Page() {
                 Analysis
               </button>
             </div>
+          </div>
+
+          <div className="panel photosPanel">
+            <div className="panelHeader">
+              <h2>Google Photos</h2>
+              <button className="ghost" onClick={() => void refreshPhotos()} disabled={!projectId || busy !== null || !canOwn}>
+                <RefreshCw size={15} /> Status
+              </button>
+            </div>
+            <p className="muted">Choose photos and videos from an album in Google&apos;s Picker. Selected files download to this laptop for local editing.</p>
+            {photos?.configured === false ? (
+              <div className="emptyState">Local Google OAuth setup required: {(photos.missing ?? []).join(", ")}</div>
+            ) : null}
+            {photos?.configured !== false && (!photos || ["disconnected", "oauth_failed", "pending_oauth"].includes(photos.status)) ? (
+              <>
+                <label className="consentRow">
+                  <input type="checkbox" checked={photosConsent} onChange={(event) => setPhotosConsent(event.target.checked)} />
+                  <span>I consent to this local app downloading only the Google Photos media I select for video editing.</span>
+                </label>
+                <button onClick={() => void connectPhotos()} disabled={!projectId || !photosConsent || busy !== null || !canOwn}>
+                  Connect Google Photos
+                </button>
+                {photosAuthUrl ? <a className="actionLink" href={photosAuthUrl} target="_blank" rel="noopener noreferrer">Open Google authorization</a> : null}
+              </>
+            ) : null}
+            {photos?.status === "connected" || photos?.status === "complete" ? (
+              <button onClick={() => void photosAction("select")} disabled={busy !== null || !canOwn}>Choose album media</button>
+            ) : null}
+            {photos?.picker_url ? <a className="actionLink" href={`${photos.picker_url}/autoclose`} target="_blank" rel="noopener noreferrer">Open Google Photos Picker</a> : null}
+            {photos && ["selecting", "ready", "importing", "complete"].includes(photos.status) ? (
+              <div className="photosProgress" role="status">
+                <strong>{photos.status.replaceAll("_", " ")}</strong>
+                <span>{photos.processed_count ?? 0} processed · {photos.imported_count ?? 0} imported · {photos.skipped_count ?? 0} skipped</span>
+              </div>
+            ) : null}
+            {photos?.status === "ready" || photos?.status === "importing" ? (
+              <div className="buttonRow">
+                <button onClick={() => void importPhotos()} disabled={busy !== null || !canOwn}>Import locally</button>
+                <button className="ghost" onClick={() => { photosPaused.current = true; }} disabled={busy === null}>Pause</button>
+              </div>
+            ) : null}
+            {photos?.error ? <div className="errorNotice">{photos.error}
+              <button className="ghost" onClick={() => void photosAction("skip")} disabled={busy !== null || !canOwn}>Skip failed item</button>
+            </div> : null}
+            {photos && !["disconnected", "not_configured"].includes(photos.status) ? (
+              <div className="buttonRow">
+                {photos.picker_url ? <button className="ghost" onClick={() => void photosAction("cancel")} disabled={busy !== null || !canOwn}>Cancel selection</button> : null}
+                <button className="reject" onClick={() => void photosAction("disconnect")} disabled={busy !== null || !canOwn}>Disconnect</button>
+              </div>
+            ) : null}
           </div>
 
           <div className="panel reviewPanel">

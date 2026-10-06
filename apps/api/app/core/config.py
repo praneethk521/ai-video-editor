@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     otel_trace_sample_ratio: float = Field(default=0.1, ge=0, le=1)
     google_client_id: str = ""
     google_client_secret: str = Field(default="", repr=False)
+    google_photos_redirect_uri: str = "http://localhost:8001/oauth/google-photos/callback"
     google_oauth_redirect_uri: str = "http://localhost:8000/projects/{project_id}/connect-drive/callback"
     google_oauth_authorize_url: str = "https://accounts.google.com/o/oauth2/v2/auth"
     google_oauth_token_url: str = "https://oauth2.googleapis.com/token"

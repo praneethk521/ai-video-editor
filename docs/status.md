@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-05
+Last updated: 2026-10-06
 
 ## Authoritative Scope
 
@@ -16,15 +16,17 @@ AWS, hosted websites, Kubernetes and cloud deployment are out of scope.
 | --- | --- | --- |
 | L1 Real local rendering | Working local baseline | Genuine HTTP uploads, ClamAV scans, Redis/RQ jobs, actual-source FFmpeg, original clip audio, private preview/download. JPEG/video color normalization and low-luma blue false-positive validation fixed. |
 | L2 Curation foundation | Implemented, limited | Local decoded-frame sharpness/exposure heuristics, exact/conservative near-duplicate grouping, bounded quality selection, sampled video start, reasons, target-duration regeneration, approval invalidation. Not a semantic model. |
-| L3 Google Photos | Not implemented | Google API research complete. OAuth + Picker sessions, pagination/download/staging, resume/revoke and real album consent still required. A Photos URL alone is not supported. |
+| L3 Google Photos | Implemented; live consent pending | Project-scoped OAuth with PKCE/one-use state, encrypted token/session state, refresh, Picker create/poll/delete, pagination, trusted-host byte downloads, one-item resumable scan/staging, skip/cancel/revoke, progress UI and tests. Needs owner OAuth credentials and a real album acceptance run. |
 | L4 Local semantic model | Not implemented | Eye-state, occlusion, point-of-interest relevance, scene/event diversity and robust video highlight quality need a chosen local model and evaluation. Unknown fields stay unknown. |
 | L5 Selection review | Partial | Duration controls, decision reasons and plan approval exist. Thumbnails, duplicate comparison, per-item override/trim, and all-low-quality review remain. |
 | L6 Laptop acceptance | Partial | Yellowstone pipeline works; no real private Photos album or 500-file media workload tested. Phone formats/HDR, resumability/cancellation and disk limits remain. |
 
 ## Current Validation
 
-- API suite: 85 passed. Worker suite: 13 passed, including real image/video/audio
-  rendering and black/corrupt-output rejection.
+- API suite: 97 passed. Worker suite: 10 passed in the host environment; three
+  real FFmpeg tests are skipped there because FFmpeg is supplied by the worker
+  container. The current container-backed run passed all 13, including real
+  image/video/audio rendering and black/corrupt-output rejection.
 - Ruff, TypeScript and Next.js production build pass. Desktop video decodes and
   the selection/duration UI fits a 390px mobile viewport without horizontal overflow.
 - Latest real demo project: `47a3dfd7-56c7-43f7-8ac3-17912cd716cf`.
@@ -46,9 +48,9 @@ AWS, hosted websites, Kubernetes and cloud deployment are out of scope.
 
 ## Next Work (In Order)
 
-1. Implement Photos OAuth + Picker import and validate a real user-selected album.
-   Requires the owner's Google OAuth client setup and interactive consent; do not
-   reuse Drive credentials/scopes as Photos authorization or make albums public.
+1. Configure the owner's local Google OAuth client, complete interactive Picker
+   consent, and validate a real selected album end to end. Do not reuse Drive
+   scopes as Photos authorization or make albums public.
 2. Choose/evaluate a local vision model for eyes, portrait quality, scene meaning,
    landmarks and highlights; add event diversity under the duration budget.
 3. Build thumbnail/duplicate review, include/exclude/pin and trim overrides;

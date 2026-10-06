@@ -13,6 +13,7 @@ from app.api.internal import router as internal_router
 from app.api.identity import router as identity_router
 from app.api.projects import router as projects_router
 from app.api.teams import router as teams_router
+from app.api.photos import router as photos_router
 from app.core.config import comma_separated_values, settings, validate_auth_configuration
 from app.core.logging import configure_logging
 from app.core.security import CurrentServiceToken, get_current_service_token, require_service_scope
@@ -116,6 +117,7 @@ def create_app() -> FastAPI:
     app.include_router(projects_router)
     app.include_router(identity_router)
     app.include_router(teams_router)
+    app.include_router(photos_router)
     app.include_router(internal_router)
     configure_api_tracing(app)
     return app

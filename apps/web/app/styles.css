@@ -645,3 +645,9 @@ input[type="file"] { max-width: 100%; min-width: 0; }
 .selectionDecisions { padding-left: 20px; max-height: 280px; overflow: auto; }
 .selectionDecisions li { margin: 8px 0; overflow-wrap: anywhere; }
 .selectionDecisions span { display: block; font-size: 13px; color: #53615b; }
+.photosPanel { align-content: start; }
+.consentRow { display: grid; grid-template-columns: 18px 1fr; align-items: start; gap: 10px; }
+.consentRow input { width: 18px; height: 18px; margin: 2px 0 0; }
+.actionLink { display: inline-flex; width: fit-content; align-items: center; gap: 6px; color: #145c4b; font-weight: 700; }
+.photosProgress, .errorNotice { display: grid; gap: 4px; padding: 12px; border: 1px solid #c9d8d2; background: #eef6f2; }
+.errorNotice { border-color: #e4bdb6; background: #fff0ed; }

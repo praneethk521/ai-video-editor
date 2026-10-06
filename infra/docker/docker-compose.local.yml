@@ -22,6 +22,10 @@ services:
     environment: &environment
       APP_ENV: local
       API_TOKEN: ${API_TOKEN:-dev-only-token}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+      GOOGLE_PHOTOS_REDIRECT_URI: http://localhost:8001/oauth/google-photos/callback
       DATABASE_URL: sqlite+pysqlite:////tmp/ai-video-editor/local.sqlite3
       REDIS_URL: redis://redis:6379/0
       CLAMAV_HOST: clamav
