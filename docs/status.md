@@ -65,6 +65,8 @@ Release command: `./scripts/start-local.sh`. Owner instructions:
 - Current npm and Python dependency audits report no known vulnerabilities after
   upgrading Next.js to 16.4.0 and PyJWT to 2.15.0. The Next.js production build,
   TypeScript and all 111 API tests pass.
+- Worker CI resolves the repository's shared Python package explicitly; all 15
+  worker tests pass in a clean Linux Python 3.12/FFmpeg environment.
 - Media and outputs remain gitignored. Docker context now excludes private data,
   credentials, local databases and model caches as well.
 
