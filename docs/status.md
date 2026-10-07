@@ -21,7 +21,7 @@ for creating a trip video from files on this Mac.
 | --- | --- | --- |
 | L1 Real local rendering | Working local baseline | Genuine HTTP uploads, ClamAV scans, Redis/RQ jobs, actual-source FFmpeg, original clip audio, private preview/download. JPEG/video color normalization and low-luma blue false-positive validation fixed. |
 | L2 Curation foundation | Implemented, limited | Local decoded-frame sharpness/exposure heuristics, exact/conservative near-duplicate grouping, bounded quality selection, sampled video start, reasons, target-duration regeneration, approval invalidation. Not a semantic model. |
-| L3 Google Photos | Implemented; live consent pending | Project-scoped OAuth with PKCE/one-use state, encrypted token/session state, refresh, Picker create/poll/delete, pagination, trusted-host byte downloads, one-item resumable scan/staging, skip/cancel/revoke, progress UI and tests. Needs owner OAuth credentials and a real album acceptance run. |
+| L3 Google Photos | Configured; live consent pending | Project-scoped OAuth with PKCE/one-use state, encrypted token/session state, refresh, Picker create/poll/delete, pagination, trusted-host byte downloads, one-item resumable scan/staging, skip/cancel/revoke, progress UI and tests. The owner's unbilled Google project, testing audience, sole test user, exact Picker read-only scope and localhost client are configured. The first consent is paused at Google's owner passkey check; a real album acceptance run remains. |
 | L4 Local semantic model | Working local baseline | Ollama `qwen2.5vl:7b` runs locally through a loopback-only strict schema; confidence downgrades, eye/occlusion review, POI evidence, technical/editorial scoring and semantic story diversity are integrated. Needs portrait/closed-eye fixtures, multi-frame semantic video scoring and large-album performance validation. |
 | L5 Selection review | Working local baseline | Authenticated thumbnails, include/exclude/pin controls, clip ordering, bounded trims, duplicate-alternative labels, owner reasons, timeline rebuilding and approval invalidation work end to end. Side-by-side duplicate comparison and all-low-quality recovery remain. |
 | L6 Laptop acceptance | Partial | Yellowstone pipeline works; no real private Photos album or 500-file media workload tested. Phone formats/HDR, resumability/cancellation and disk limits remain. |
@@ -58,18 +58,21 @@ Release command: `./scripts/start-local.sh`. Owner instructions:
 - Local source analysis never calls an external provider. Metadata-only legacy
   providers remain for non-staged fixture/legacy paths; not Photos production support.
 - 500-candidate selection is unit-tested, not a measured 500-file import benchmark.
-- Git history: 53 commits scanned with Gitleaks; one reviewed example-placeholder
-  false positive narrowly fingerprint-allowlisted. No real secrets found.
-- Trivy working-tree secret scan: no findings. Staged changes are scanned before
-  check-in; CI now includes full-history Gitleaks as well.
+- Full Git history scanned with Gitleaks; one reviewed example-placeholder false
+  positive remains narrowly fingerprint-allowlisted. No real secrets found.
+- Trivy repository secret scan: no findings. Root `.env`, original media, outputs
+  and local state are gitignored; downloaded OAuth credential JSON was removed.
+- Current npm and Python dependency audits report no known vulnerabilities after
+  upgrading Next.js to 16.4.0 and PyJWT to 2.15.0. The Next.js production build,
+  TypeScript and all 111 API tests pass.
 - Media and outputs remain gitignored. Docker context now excludes private data,
   credentials, local databases and model caches as well.
 
 ## Next Work (In Order)
 
-1. Configure the owner's local Google OAuth client, complete interactive Picker
-   consent, and validate a real selected album end to end. Do not reuse Drive
-   scopes as Photos authorization or make albums public.
+1. Complete the owner's Google passkey and Picker consent, then validate a real
+   selected album end to end. Do not reuse Drive scopes as Photos authorization
+   or make albums public.
 2. Validate the local model on portrait/open-eye/closed-eye/occlusion fixtures,
    add multi-frame semantic video scoring, and benchmark/cache a large album.
 3. Add side-by-side duplicate comparison and an all-low-quality
