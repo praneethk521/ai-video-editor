@@ -190,7 +190,15 @@ def session_path(data: dict) -> str:
 
 
 def update_session(data: dict, session: dict) -> None:
-    uri = urlsplit(session.get("pickerUri", ""))
+    picker_uri = session.get("pickerUri")
+    if not picker_uri:
+        previous = data.get("session") or {}
+        if (not session.get("mediaItemsSet") or not session.get("id")
+                or session.get("id") != previous.get("id") or not previous.get("pickerUri")):
+            raise PhotosError("Google returned an unexpected Picker address")
+        picker_uri = previous["pickerUri"]
+        session = {**session, "pickerUri": picker_uri}
+    uri = urlsplit(picker_uri)
     if uri.scheme != "https" or uri.hostname != "photos.google.com" or uri.username or uri.port not in {None, 443}:
         raise PhotosError("Google returned an unexpected Picker address")
     if not session.get("id"):
@@ -302,15 +310,30 @@ def import_item(db: Session, project_id: str, item: dict, token: str) -> bool:
     deadline = time.monotonic() + 120
     with tempfile.TemporaryFile() as spool:
         try:
-            with client() as http, http.stream("GET", url, headers={"Authorization": f"Bearer {token}"}) as response:
-                if not response.is_success:
-                    raise PhotosError("Media download failed or expired; retry to refresh the selection URLs")
-                size = 0
-                for chunk in response.iter_bytes(1024 * 1024):
-                    size += len(chunk)
-                    if size > settings.max_upload_bytes or time.monotonic() > deadline:
-                        raise PhotosError("Media download exceeded the local size or time limit")
-                    spool.write(chunk)
+            headers = {"Authorization": f"Bearer {token}"}
+            with client() as http:
+                for attempt in range(2):
+                    with http.stream("GET", url, headers=headers) as response:
+                        if response.status_code in {301, 302, 303, 307, 308}:
+                            redirect = urlsplit(response.headers.get("location", ""))
+                            if (attempt or redirect.scheme != "https"
+                                    or redirect.hostname != "video-downloads.googleusercontent.com"
+                                    or redirect.port not in {None, 443} or redirect.username or redirect.fragment):
+                                raise PhotosError("Google returned an unsupported media download redirect")
+                            url = response.headers["location"]
+                            headers = {}
+                            continue
+                        if not response.is_success:
+                            raise PhotosError("Media download failed or expired; retry to refresh the selection URLs")
+                        size = 0
+                        for chunk in response.iter_bytes(1024 * 1024):
+                            size += len(chunk)
+                            if size > settings.max_upload_bytes or time.monotonic() > deadline:
+                                raise PhotosError("Media download exceeded the local size or time limit")
+                            spool.write(chunk)
+                        break
+                else:
+                    raise PhotosError("Google returned excessive media download redirects")
         except httpx.HTTPError:
             raise PhotosError("Media download interrupted; retry this item") from None
         spool.seek(0)

@@ -21,7 +21,7 @@ for creating a trip video from files on this Mac.
 | --- | --- | --- |
 | L1 Real local rendering | Working local baseline | Genuine HTTP uploads, ClamAV scans, Redis/RQ jobs, actual-source FFmpeg, original clip audio, private preview/download. JPEG/video color normalization and low-luma blue false-positive validation fixed. |
 | L2 Curation foundation | Implemented, limited | Local decoded-frame sharpness/exposure heuristics, exact/conservative near-duplicate grouping, bounded quality selection, sampled video start, reasons, target-duration regeneration, approval invalidation. Not a semantic model. |
-| L3 Google Photos | Configured; live consent pending | Project-scoped OAuth with PKCE/one-use state, encrypted token/session state, refresh, Picker create/poll/delete, pagination, trusted-host byte downloads, one-item resumable scan/staging, skip/cancel/revoke, progress UI and tests. The owner's unbilled Google project, testing audience, sole test user, exact Picker read-only scope and localhost client are configured. The first consent is paused at Google's owner passkey check; a real album acceptance run remains. |
+| L3 Google Photos | Live import validation | Project-scoped OAuth with PKCE/one-use state, encrypted token/session state, refresh, Picker create/poll/delete, pagination, trusted-host byte downloads, one-item resumable scan/staging, skip/cancel/revoke, progress UI and tests. The owner's unbilled Google project, testing audience, sole test user, exact Picker read-only scope and localhost client are configured. Owner consent and a real Picker selection now succeed; local import/render acceptance remains. Completed polls may omit their expired Picker URI and safely reuse only the prior validated URI for the matching session. Video downloads follow one exact HTTPS Google redirect without forwarding the bearer token. |
 | L4 Local semantic model | Working local baseline | Ollama `qwen2.5vl:7b` runs locally through a loopback-only strict schema; confidence downgrades, eye/occlusion review, POI evidence, technical/editorial scoring and semantic story diversity are integrated. Needs portrait/closed-eye fixtures, multi-frame semantic video scoring and large-album performance validation. |
 | L5 Selection review | Working local baseline | Authenticated thumbnails, include/exclude/pin controls, clip ordering, bounded trims, duplicate-alternative labels, owner reasons, timeline rebuilding and approval invalidation work end to end. Side-by-side duplicate comparison and all-low-quality recovery remain. |
 | L6 Laptop acceptance | Partial | Yellowstone pipeline works; no real private Photos album or 500-file media workload tested. Phone formats/HDR, resumability/cancellation and disk limits remain. |
@@ -64,7 +64,7 @@ Release command: `./scripts/start-local.sh`. Owner instructions:
   and local state are gitignored; downloaded OAuth credential JSON was removed.
 - Current npm and Python dependency audits report no known vulnerabilities after
   upgrading Next.js to 16.4.0 and PyJWT to 2.15.0. The Next.js production build,
-  TypeScript and all 111 API tests pass.
+  TypeScript and all 114 API tests pass.
 - Worker CI resolves the repository's shared Python package explicitly; all 15
   worker tests pass in a clean Linux Python 3.12/FFmpeg environment.
 - Media and outputs remain gitignored. Docker context now excludes private data,

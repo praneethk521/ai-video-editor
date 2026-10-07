@@ -99,6 +99,23 @@ def test_picker_poll_and_paginated_listing(db_session, photos_project, monkeypat
     assert calls[-1][2]["pageToken"] == "next"
 
 
+def test_completed_picker_poll_can_omit_expired_picker_uri(db_session, photos_project, monkeypatch):
+    row = connected(db_session, photos_project)
+    data = photos.unpack(row)
+    original_session = session_payload()
+    photos.update_session(data, original_session)
+    row.status = "selecting"
+    data["next_poll_at"] = 0
+
+    completed = {key: value for key, value in session_payload(ready=True).items() if key != "pickerUri"}
+    monkeypatch.setattr(photos, "request_json", lambda *args, **kwargs: completed)
+
+    photos.poll_selection(row, data)
+
+    assert row.status == "ready"
+    assert data["session"]["pickerUri"] == original_session["pickerUri"]
+
+
 def test_expired_token_refreshes_without_losing_refresh_token(db_session, photos_project, monkeypatch):
     row = connected(db_session, photos_project)
     data = photos.unpack(row)
@@ -145,7 +162,9 @@ def test_import_progress_resumes_and_scrubs_expiring_urls(db_session, photos_pro
 
 def test_import_item_streams_bytes_into_private_local_ingest(db_session, photos_project, monkeypatch):
     class Response:
+        status_code = 200
         is_success = True
+        headers = {}
         def __enter__(self): return self
         def __exit__(self, *args): pass
         def iter_bytes(self, size): yield b"private-photo-bytes"
@@ -167,9 +186,64 @@ def test_import_item_streams_bytes_into_private_local_ingest(db_session, photos_
     assert captured == {"project_id": photos_project.id, "filename": "unsafe_trip.jpg", "bytes": b"private-photo-bytes"}
 
 
+def test_video_download_follows_only_trusted_google_redirect_without_bearer(
+        db_session, photos_project, monkeypatch):
+    class Response:
+        def __init__(self, status_code, headers=None, body=b""):
+            self.status_code = status_code
+            self.headers = headers or {}
+            self.is_success = status_code == 200
+            self.body = body
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def iter_bytes(self, size): yield self.body
+    class Client:
+        calls = []
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def stream(self, method, url, headers):
+            self.calls.append((url, headers))
+            if len(self.calls) == 1:
+                return Response(302, {"location": "https://video-downloads.googleusercontent.com/video"})
+            return Response(200, body=b"private-video-bytes")
+    monkeypatch.setattr(photos, "client", Client)
+    monkeypatch.setattr(photos, "upload_local_media", lambda *args, **kwargs: SimpleNamespace(metadata_json={}))
+    payload = item()
+    payload["type"] = "VIDEO"
+    payload["mediaFile"]["filename"] = "trip.mov"
+    payload["mediaFile"]["mediaFileMetadata"] = {"videoMetadata": {"processingStatus": "READY"}}
+
+    assert photos.import_item(db_session, photos_project.id, payload, "token") is True
+    assert Client.calls[0][1] == {"Authorization": "Bearer token"}
+    assert Client.calls[1] == ("https://video-downloads.googleusercontent.com/video", {})
+
+
+def test_video_download_rejects_untrusted_redirect(db_session, photos_project, monkeypatch):
+    class Response:
+        status_code = 302
+        is_success = False
+        headers = {"location": "https://evil.test/video"}
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+    class Client:
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def stream(self, *args, **kwargs): return Response()
+    monkeypatch.setattr(photos, "client", Client)
+    payload = item()
+    payload["type"] = "VIDEO"
+    payload["mediaFile"]["mediaFileMetadata"] = {"videoMetadata": {"processingStatus": "READY"}}
+
+    with pytest.raises(photos.PhotosError, match="unsupported media download redirect"):
+        photos.import_item(db_session, photos_project.id, payload, "token")
+
+
 def test_invalid_picker_uri_and_video_processing_are_rejected():
     with pytest.raises(photos.PhotosError, match="unexpected Picker"):
         photos.update_session({}, {**session_payload(), "pickerUri": "https://evil.test/picker"})
+    existing = {"session": session_payload()}
+    with pytest.raises(photos.PhotosError, match="unexpected Picker"):
+        photos.update_session(existing, {"id": "different-session", "mediaItemsSet": True})
     video = item()
     video["type"] = "VIDEO"
     video["mediaFile"]["mediaFileMetadata"] = {"videoMetadata": {"processingStatus": "PROCESSING"}}
