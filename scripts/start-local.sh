@@ -41,7 +41,7 @@ if ! command -v ollama >/dev/null 2>&1 \
 fi
 
 API_TOKEN="$api_token" TOKEN_ENCRYPTION_KEY="$encryption_key" \
-  docker compose -f infra/docker/docker-compose.local.yml up -d --build
+  docker compose --env-file "$root/.env" -f infra/docker/docker-compose.local.yml up -d --build
 
 for _ in {1..90}; do
   if curl --fail --silent http://127.0.0.1:8001/healthz >/dev/null \
