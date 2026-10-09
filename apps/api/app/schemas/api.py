@@ -159,7 +159,7 @@ class PlanReviewRequest(BaseModel):
 
 
 class SoundtrackUpdateRequest(BaseModel):
-    mode: Literal["latest", "manual", "none"]
+    mode: Literal["auto", "latest", "manual", "none"]
     asset_id: str | None = Field(default=None, min_length=1, max_length=64)
 
 

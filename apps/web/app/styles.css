@@ -845,6 +845,13 @@ input[type="file"] { max-width: 100%; min-width: 0; }
 .decisionReasons { overflow-wrap: anywhere; }
 .storyBeat { width: fit-content; padding: 3px 6px; border: 1px solid #b8cce0; color: #24557f; font-size: 11px; font-weight: 800; text-transform: capitalize; }
 .soundtrackField { margin: 12px 0; }
+
+.fieldHint {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+}
 .duplicateNote { padding: 6px 8px; border-left: 3px solid var(--warning); background: var(--warning-soft); color: #654500; font-size: 12px; }
 .decisionToggles { display: flex; flex-wrap: wrap; gap: 16px; }
 .decisionToggles label { display: inline-flex; grid-template-columns: none; flex-direction: row; align-items: center; gap: 6px; color: var(--text); }

@@ -58,9 +58,11 @@ type TimelinePlanBody = {
     }>;
   };
   soundtrack?: {
-    mode: "latest" | "manual" | "none";
+    mode: "auto" | "latest" | "manual" | "none";
     asset_id?: string | null;
     filename?: string | null;
+    selection_reason?: string | null;
+    relevance_score?: number | null;
   };
   tracks?: TimelineTrack[];
   strategy?: {
@@ -613,7 +615,7 @@ export default function Page() {
 
   async function updateSoundtrack(planId: string, value: string) {
     await run("Soundtrack updated", async () => {
-      const mode = value === "latest" || value === "none" ? value : "manual";
+      const mode = value === "auto" || value === "none" ? value : "manual";
       await api(`/projects/${projectId}/plans/${planId}/soundtrack`, {
         method: "PUT",
         body: JSON.stringify({ mode, asset_id: mode === "manual" ? value : null })
@@ -1154,7 +1156,7 @@ export default function Page() {
                 const edits = planEdits[plan.id] ?? [];
                 const soundtrackValue = plan.plan.soundtrack?.mode === "manual"
                   ? plan.plan.soundtrack.asset_id ?? "none"
-                  : plan.plan.soundtrack?.mode ?? "none";
+                  : plan.plan.soundtrack?.mode === "latest" ? "auto" : plan.plan.soundtrack?.mode ?? "none";
                 const soundtrackAssets = media.filter((asset) => asset.mime_type.startsWith("audio/"));
                 const selectedDuration = edits.filter((item) => item.selected || item.pinned)
                   .reduce((total, item) => total + Number(item.duration || 0), 0);
@@ -1181,12 +1183,17 @@ export default function Page() {
                       onChange={(event) => void updateSoundtrack(plan.id, event.target.value)}
                       disabled={busy !== null || !canReview}
                     >
-                      {soundtrackAssets.length > 0 ? <option value="latest">Newest uploaded audio</option> : null}
+                      {soundtrackAssets.length > 0 ? <option value="auto">Automatic best match</option> : null}
                       <option value="none">No soundtrack</option>
                       {soundtrackAssets.map((asset) => (
                         <option key={asset.id} value={asset.id}>{asset.filename}</option>
                       ))}
                     </select>
+                    {plan.plan.soundtrack?.mode === "auto" ? (
+                      <span className="fieldHint">
+                        {plan.plan.soundtrack.filename} · {plan.plan.soundtrack.selection_reason ?? "Selected automatically"}
+                      </span>
+                    ) : null}
                   </label>
                   {plan.plan.selection && plan.status !== "rejected" ? <details className="selectionReview" open={plan.status === "draft"}>
                     <summary>Review media ({edits.filter((item) => item.selected || item.pinned).length} selected · {selectedDuration.toFixed(1)}s)</summary>

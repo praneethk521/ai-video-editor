@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -234,7 +235,6 @@ def create_timeline_plans(
     asset_summaries = asset_summaries_from_analysis(analysis_json)
     db.flush()
     plans = []
-    default_soundtrack = latest_soundtrack(db, project_id=project_id)
     for variant in variants:
         local_curation = analysis_json.get("provider") in {"local-pixel-quality-v1", "local-vision-curation-v1"}
         selection = None
@@ -248,7 +248,20 @@ def create_timeline_plans(
             asset_summaries = [AssetSummary(asset_id=item["asset_id"], duration_seconds=item["selected_duration"],
                                             source_start=item["selected_start"]) for item in selection["selected"]]
         plan_json = build_timeline_plan(project_id, asset_summaries, variant, curated=local_curation)
-        plan_json = apply_soundtrack(plan_json, default_soundtrack, mode="latest" if default_soundtrack else "none")
+        target_duration = selection["duration_seconds"] if selection is not None else _visual_duration(plan_json)
+        soundtrack, reason, relevance_score = recommended_soundtrack(
+            db,
+            project_id=project_id,
+            analysis_json=analysis_json,
+            target_seconds=target_duration,
+        )
+        plan_json = apply_soundtrack(
+            plan_json,
+            soundtrack,
+            mode="auto" if soundtrack else "none",
+            selection_reason=reason,
+            relevance_score=relevance_score,
+        )
         if selection is not None:
             plan_json["selection"] = {key: value for key, value in selection.items() if key != "selected"}
             plan_json["export"]["max_duration_seconds"] = int(selection["target_seconds"])
@@ -284,12 +297,21 @@ def set_plan_soundtrack(
     asset_id: str | None,
 ) -> TimelinePlan:
     plan = get_project_plan(db, project_id=project_id, plan_id=plan_id)
+    reason = None
+    relevance_score = None
     if mode == "none":
         soundtrack = None
-    elif mode == "latest":
-        soundtrack = latest_soundtrack(db, project_id=project_id)
+    elif mode in {"auto", "latest"}:
+        analysis = latest_analysis_result(db, project_id=project_id)
+        soundtrack, reason, relevance_score = recommended_soundtrack(
+            db,
+            project_id=project_id,
+            analysis_json=analysis.result_json if analysis else {},
+            target_seconds=_visual_duration(plan.plan_json),
+        )
         if soundtrack is None:
             raise ValueError("project has no eligible soundtrack audio")
+        mode = "auto"
     elif mode == "manual":
         soundtrack = db.get(MediaAsset, asset_id) if asset_id else None
         if (soundtrack is None or soundtrack.project_id != project_id
@@ -298,7 +320,13 @@ def set_plan_soundtrack(
     else:
         raise ValueError("unsupported soundtrack selection mode")
 
-    plan_json = apply_soundtrack(dict(plan.plan_json), soundtrack, mode=mode)
+    plan_json = apply_soundtrack(
+        dict(plan.plan_json),
+        soundtrack,
+        mode=mode,
+        selection_reason=reason if mode == "auto" else "Selected by reviewer" if mode == "manual" else None,
+        relevance_score=relevance_score if mode == "auto" else None,
+    )
     plan_json["version"] = int(plan_json.get("version", 1)) + 1
     plan.plan_json = plan_json
     plan.status = PlanStatus.draft
@@ -309,8 +337,14 @@ def set_plan_soundtrack(
     return plan
 
 
-def latest_soundtrack(db: Session, *, project_id: str) -> MediaAsset | None:
-    return (
+def recommended_soundtrack(
+    db: Session,
+    *,
+    project_id: str,
+    analysis_json: dict,
+    target_seconds: float,
+) -> tuple[MediaAsset | None, str | None, float | None]:
+    candidates = (
         db.query(MediaAsset)
         .filter(
             MediaAsset.project_id == project_id,
@@ -318,17 +352,91 @@ def latest_soundtrack(db: Session, *, project_id: str) -> MediaAsset | None:
             MediaAsset.malware_scan_status == "clean",
         )
         .order_by(MediaAsset.created_at.desc(), MediaAsset.id.desc())
-        .first()
+        .all()
     )
+    if not candidates:
+        return None, None, None
+
+    story_terms = _story_terms(analysis_json)
+    ranked = []
+    for recency_index, asset in enumerate(candidates):
+        audio_terms = _audio_terms(asset)
+        overlap = sorted(story_terms & audio_terms)
+        duration_fit = min(1.0, float(asset.duration_seconds or 0) / max(float(target_seconds or 1), 1.0))
+        recency_score = 1 / (recency_index + 1)
+        relevance_score = min(1.0, len(overlap) * 0.2 + duration_fit * 0.3 + recency_score * 0.1)
+        ranked.append(((len(overlap), duration_fit, recency_score), asset, overlap, relevance_score))
+
+    _, selected, overlap, score = max(ranked, key=lambda row: row[0])
+    if overlap:
+        reason = f"Matches story themes: {', '.join(overlap[:3])}"
+    elif float(selected.duration_seconds or 0) >= float(target_seconds or 0):
+        reason = "Best duration fit; newest file used as the tie-breaker"
+    else:
+        reason = "Best available audio; newest file used as the tie-breaker"
+    return selected, reason, round(score, 2)
 
 
-def apply_soundtrack(plan_json: dict, soundtrack: MediaAsset | None, *, mode: str) -> dict:
-    tracks = [track for track in plan_json.get("tracks", []) if track.get("type") != "audio"]
-    duration = max(
+def _story_terms(analysis_json: dict) -> set[str]:
+    terms = {"trip", "travel", "story"}
+    for feature in analysis_json.get("asset_features") or []:
+        terms.update(_tokens(feature.get("story_group")))
+        terms.update(_tokens(feature.get("scene")))
+        terms.update(_tokens(feature.get("setting")))
+        terms.update(_tokens(feature.get("point_of_interest")))
+        for tag in feature.get("tags") or []:
+            terms.update(_tokens(tag))
+        semantic = feature.get("semantic") or {}
+        terms.update(_tokens(semantic.get("point_of_interest")))
+        for tag in semantic.get("tags") or []:
+            terms.update(_tokens(tag))
+
+    mood_map = {
+        "activity": {"adventure", "energetic", "upbeat"},
+        "journey": {"adventure", "cinematic", "travel"},
+        "mountain": {"adventure", "cinematic", "nature"},
+        "waterfall": {"ambient", "calm", "cinematic", "nature"},
+        "landscape": {"ambient", "calm", "cinematic", "nature"},
+        "people": {"acoustic", "happy", "warm"},
+        "group": {"happy", "upbeat", "warm"},
+        "wildlife": {"adventure", "cinematic", "nature"},
+    }
+    for term in tuple(terms):
+        terms.update(mood_map.get(term, set()))
+    return terms
+
+
+def _audio_terms(asset: MediaAsset) -> set[str]:
+    terms = _tokens(Path(asset.original_filename).stem)
+    tags = (asset.metadata_json or {}).get("audio_tags") or {}
+    for value in tags.values() if isinstance(tags, dict) else []:
+        terms.update(_tokens(value))
+    return terms
+
+
+def _tokens(value: object) -> set[str]:
+    return {token for token in re.findall(r"[a-z0-9]+", str(value or "").lower()) if len(token) >= 3}
+
+
+def _visual_duration(plan_json: dict) -> float:
+    return max(
         (clip["timeline_start"] + clip["end"] - clip["start"]
-         for track in tracks if track.get("type") == "video" for clip in track.get("clips", [])),
+         for track in plan_json.get("tracks", []) if track.get("type") == "video"
+         for clip in track.get("clips", [])),
         default=0,
     )
+
+
+def apply_soundtrack(
+    plan_json: dict,
+    soundtrack: MediaAsset | None,
+    *,
+    mode: str,
+    selection_reason: str | None = None,
+    relevance_score: float | None = None,
+) -> dict:
+    tracks = [track for track in plan_json.get("tracks", []) if track.get("type") != "audio"]
+    duration = _visual_duration({"tracks": tracks})
     if soundtrack is not None:
         tracks.append({"type": "audio", "clips": [{
             "asset_id": soundtrack.id,
@@ -344,6 +452,8 @@ def apply_soundtrack(plan_json: dict, soundtrack: MediaAsset | None, *, mode: st
         "filename": soundtrack.original_filename if soundtrack else None,
         "music_gain_db": -13,
         "original_gain_db": -3,
+        "selection_reason": selection_reason,
+        "relevance_score": relevance_score,
     }
     return plan_json
 

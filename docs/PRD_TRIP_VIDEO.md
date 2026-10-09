@@ -86,14 +86,16 @@ References checked 2026-10-05:
 
 1. A soundtrack is optional and must be an owner-provided local audio file that
    the owner is licensed or otherwise permitted to use. Never scrape, stream, or
-   silently download a current commercial song. "Latest audio" means the newest
-   eligible soundtrack asset imported into this project.
-2. New plans select the latest soundtrack by default. The review UI lists all
-   eligible project audio by filename and date and lets the owner choose another
-   soundtrack or explicitly choose no soundtrack. Changing it invalidates prior
-   approval and requires a new render.
+   silently download a current commercial song. Automatic selection considers
+   only eligible soundtrack assets imported into the project.
+2. New plans select the most relevant eligible soundtrack by default. Ranking
+   uses story-theme overlap from safe filename/embedded title, genre, and mood
+   metadata, useful duration, and recency as a tie-breaker. The plan records the
+   selected file and reason. The review UI lists all eligible project audio and
+   lets the user choose another soundtrack or explicitly choose no soundtrack.
+   Changing it invalidates prior approval and requires a new render.
 3. Soundtrack selection is independent for landscape and vertical plans. The
-   selected asset ID, selection mode (`latest`, `manual`, or `none`), and mix
+   selected asset ID, selection mode (`auto`, `manual`, or `none`), and mix
    settings are stored in the versioned timeline plan.
 4. Rendering loops or trims music to the visual duration, fades boundaries,
    normalizes final loudness for YouTube, and mixes below useful original clip
@@ -143,7 +145,7 @@ is a release gate before pushing code.
 | L5 Selection review | dashboard, project schemas/routes, selection persistence | Thumbnail comparisons, include/exclude/pin, duplicate alternatives, trims, target duration; versioned decisions and approval invalidation. |
 | L6 Laptop acceptance | demo scripts, local runbook, privacy/secret check, status | Large Photos trip album imported, curated, reviewed, rendered, played; no cloud execution or media in GitHub. |
 | L7 Story intelligence | local vision schema/prompt, `local_analysis.py`, shared `curation.py`, planning/tests | Multi-frame video evidence; exact/visual/semantic repetition report; bounded story beats; chronology and owner overrides preserved. |
-| L8 Soundtrack | media probe/upload, plan schema/review routes, worker renderer/validation, dashboard | Newest eligible local audio defaults; manual/none choice; approval invalidation; licensed-source notice; mixed and validated output. |
+| L8 Soundtrack | media probe/upload, plan schema/review routes, worker renderer/validation, dashboard | Relevant eligible local audio defaults with a recorded reason; manual/none choice; approval invalidation; licensed-source notice; mixed and validated output. |
 | L9 Pipeline experience | derived project-progress module, status response, dashboard/CSS/tests | Import-to-ready flow names current/next action and accurately handles retries, failures, one/two variants, desktop, and mobile. |
 
 ## Acceptance Datasets and Gates
@@ -168,8 +170,9 @@ is a release gate before pushing code.
   photo matching a video frame, several distinct trip events, and a weak ending.
   The plan must retain the strongest representative, cover distinct events, and
   produce opening/middle/highlight/closing beats without padding.
-- Soundtrack acceptance uses two local audio fixtures with different import
-  times. The newer one is selected by default, manual and none choices persist,
+- Soundtrack acceptance uses multiple local audio fixtures with different
+  semantic metadata and import times. The story-relevant one is selected by
+  default, recency breaks equivalent ties, manual and none choices persist,
   original clip audio remains audible beneath music, and no network request is
   made to discover or retrieve music.
 

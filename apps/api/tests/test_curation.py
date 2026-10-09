@@ -188,29 +188,62 @@ def test_curated_plan_budget_and_regeneration_invalidates_approval(client, auth_
     assert first.status == PlanStatus.rejected
 
 
-def test_new_plan_defaults_to_latest_project_soundtrack(client, auth_headers, db_session):
+def test_new_plan_defaults_to_story_relevant_project_soundtrack(client, auth_headers, db_session):
     project_id = client.post("/projects", headers=auth_headers, json={"name": "Soundtrack"}).json()["id"]
     started = datetime.now(UTC)
-    older = MediaAsset(
-        project_id=project_id, original_filename="older.mp3", sanitized_filename="older.mp3",
+    relevant = MediaAsset(
+        project_id=project_id, original_filename="cinematic-mountain-adventure.mp3",
+        sanitized_filename="cinematic-mountain-adventure.mp3",
         mime_type="audio/mpeg", size_bytes=100, duration_seconds=60, orientation="audio",
         private_locator=f"file://private/sources/{project_id}/older", malware_scan_status="clean",
         metadata_json={}, created_at=started,
     )
-    newer = MediaAsset(
-        project_id=project_id, original_filename="newer.wav", sanitized_filename="newer.wav",
+    generic = MediaAsset(
+        project_id=project_id, original_filename="newer-track.wav", sanitized_filename="newer-track.wav",
         mime_type="audio/wav", size_bytes=100, duration_seconds=60, orientation="audio",
         private_locator=f"file://private/sources/{project_id}/newer", malware_scan_status="clean",
         metadata_json={}, created_at=started + timedelta(seconds=1),
     )
-    db_session.add_all([older, newer])
+    db_session.add_all([relevant, generic])
     db_session.flush()
-    analysis = {"provider": "local-pixel-quality-v1", "asset_features": [candidate("photo")]}
+    analysis = {
+        "provider": "local-pixel-quality-v1",
+        "asset_features": [candidate("photo", tags=["mountain", "scenery"], story_group="landscape:mountain")],
+    }
 
     plan = create_timeline_plans(
         db_session, project_id=project_id, analysis_json=analysis, variants=["youtube_16x9"]
     )[0]
 
-    assert plan.plan_json["soundtrack"]["mode"] == "latest"
-    assert plan.plan_json["soundtrack"]["asset_id"] == newer.id
+    assert plan.plan_json["soundtrack"]["mode"] == "auto"
+    assert plan.plan_json["soundtrack"]["asset_id"] == relevant.id
+    assert "mountain" in plan.plan_json["soundtrack"]["selection_reason"]
+    assert plan.plan_json["soundtrack"]["relevance_score"] > 0
     assert plan.plan_json["tracks"][1]["type"] == "audio"
+
+
+def test_automatic_soundtrack_falls_back_to_newest_when_candidates_are_equivalent(
+    client, auth_headers, db_session,
+):
+    project_id = client.post("/projects", headers=auth_headers, json={"name": "Fallback"}).json()["id"]
+    started = datetime.now(UTC)
+    assets = [
+        MediaAsset(
+            project_id=project_id, original_filename=name, sanitized_filename=name,
+            mime_type="audio/mpeg", size_bytes=100, duration_seconds=60, orientation="audio",
+            private_locator=f"file://private/sources/{project_id}/{name}", malware_scan_status="clean",
+            metadata_json={}, created_at=started + timedelta(seconds=index),
+        )
+        for index, name in enumerate(["track-one.mp3", "track-two.mp3"])
+    ]
+    db_session.add_all(assets)
+    db_session.flush()
+
+    plan = create_timeline_plans(
+        db_session,
+        project_id=project_id,
+        analysis_json={"provider": "local-pixel-quality-v1", "asset_features": [candidate("photo")]},
+        variants=["youtube_16x9"],
+    )[0]
+
+    assert plan.plan_json["soundtrack"]["asset_id"] == assets[1].id

@@ -182,7 +182,7 @@ class VideoRenderer:
         if (clip.get("effect") != "soundtrack" or clip.get("timeline_start") != 0
                 or clip.get("start", -1) < 0 or abs(clip.get("end", 0) - duration) > 0.01):
             raise ValueError("soundtrack clip must span the visual timeline")
-        if configured.get("asset_id") != clip.get("asset_id") or configured.get("mode") not in {"latest", "manual"}:
+        if configured.get("asset_id") != clip.get("asset_id") or configured.get("mode") not in {"auto", "latest", "manual"}:
             raise ValueError("soundtrack metadata does not match its audio track")
         source = sources.get(clip["asset_id"])
         if not source:

@@ -33,7 +33,7 @@ def test_upload_persists_scanned_probed_metadata(client, auth_headers, db_sessio
 
 
 def test_media_probe_accepts_mp3_soundtrack(monkeypatch, tmp_path):
-    payload = '{"streams":[{"codec_type":"audio","codec_name":"mp3"}],"format":{"format_name":"mp3","duration":"42.5"}}'
+    payload = '{"streams":[{"codec_type":"audio","codec_name":"mp3"}],"format":{"format_name":"mp3","duration":"42.5","tags":{"title":"Open Road","genre":"Cinematic"}}}'
     monkeypatch.setattr(
         shared_media.subprocess,
         "run",
@@ -49,6 +49,7 @@ def test_media_probe_accepts_mp3_soundtrack(monkeypatch, tmp_path):
         "height": 0,
         "orientation": "audio",
         "has_audio": True,
+        "audio_tags": {"title": "Open Road", "genre": "Cinematic"},
     }
 
 

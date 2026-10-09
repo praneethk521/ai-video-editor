@@ -40,11 +40,13 @@
       "required": ["mode", "asset_id", "filename", "music_gain_db", "original_gain_db"],
       "additionalProperties": false,
       "properties": {
-        "mode": { "type": "string", "enum": ["latest", "manual", "none"] },
+        "mode": { "type": "string", "enum": ["auto", "latest", "manual", "none"] },
         "asset_id": { "type": ["string", "null"] },
         "filename": { "type": ["string", "null"] },
         "music_gain_db": { "type": "number", "minimum": -40, "maximum": 0 },
-        "original_gain_db": { "type": "number", "minimum": -40, "maximum": 0 }
+        "original_gain_db": { "type": "number", "minimum": -40, "maximum": 0 },
+        "selection_reason": { "type": ["string", "null"] },
+        "relevance_score": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
       }
     },
     "tracks": {

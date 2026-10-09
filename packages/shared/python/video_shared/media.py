@@ -41,8 +41,18 @@ def probe_media(path: Path, ffprobe: str = "ffprobe") -> dict:
         mime = "audio/mpeg" if "mp3" in container else "audio/wav" if "wav" in container else None
         if not mime:
             raise ValueError("unsupported audio encoding")
-        return {"mime_type": mime, "duration_seconds": duration, "width": 0, "height": 0,
-                "orientation": "audio", "has_audio": True}
+        raw_tags = payload.get("format", {}).get("tags") or {}
+        normalized_tags = {str(key).lower(): str(value)[:120] for key, value in raw_tags.items()}
+        audio_tags = {
+            key: normalized_tags[key]
+            for key in ("title", "genre", "mood")
+            if normalized_tags.get(key)
+        }
+        result = {"mime_type": mime, "duration_seconds": duration, "width": 0, "height": 0,
+                  "orientation": "audio", "has_audio": True}
+        if audio_tags:
+            result["audio_tags"] = audio_tags
+        return result
     width, height = int(video["width"]), int(video["height"])
     if width < 1 or height < 1 or width * height > 50_000_000:
         raise ValueError("media dimensions exceed the supported limit")
