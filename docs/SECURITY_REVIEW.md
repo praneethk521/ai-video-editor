@@ -6,7 +6,9 @@ Baseline: `codex/local-trip-curation` plus the remediations described here.
 
 ## Outcome
 
-The implemented private-media MVP has a defensible security baseline for its intended local-only, single-owner use. It is not an internet service and should not be exposed outside this laptop. A real Google Photos album acceptance run and larger/adversarial media testing remain open.
+The implemented private-media MVP has a defensible security baseline for its
+intended local use. It is not designed as a public internet service. Larger and
+adversarial media testing remains open.
 
 No known fixable high or critical findings remain in the built API and worker images at review time. Application dependency audits and repository secret scanning are clean.
 
@@ -46,7 +48,10 @@ No known fixable high or critical findings remain in the built API and worker im
 
 The production trip-import path uses only `photospicker.mediaitems.readonly`. It lets the app create and inspect Picker sessions and download only the photos and videos the owner explicitly selects. It does not grant library-wide browsing, modification, or deletion. The legacy optional Drive field is not the recommended private-album path.
 
-The OAuth web client has one exact loopback redirect, `http://localhost:8001/oauth/google-photos/callback`. Authorization uses PKCE, a random one-use expiring state value, exact scope validation, and encrypted local token storage. The Google project is external/testing with one test user and no billing account. The first owner consent and real-album acceptance run remain unfinished.
+The OAuth client uses an exact approved loopback redirect. Authorization uses
+PKCE, a random one-use expiring state value, exact scope validation, and encrypted
+local token storage. Acceptance uses a restricted test audience and no public
+album access.
 
 References:
 
@@ -62,11 +67,15 @@ The repository is intentionally public and Dependabot branches are present. Loca
 
 - A thief or malware process with both the local database/Docker volumes and the root `.env` could decrypt and reuse the stored Google refresh token until access is disconnected or revoked.
 - OAuth client credentials identify this installed local app but do not protect a compromised laptop. PKCE and one-use state reduce authorization-code interception and CSRF risk.
-- Imported originals and rendered outputs are private files on this laptop; disk encryption, account security, backups, and deletion remain owner responsibilities.
+- Imported originals and rendered outputs are private local files; disk
+  encryption, account security, backups, and deletion remain user responsibilities.
 - ClamAV and type checks reduce malicious-media risk but cannot eliminate parser or FFmpeg vulnerabilities. Large, unusual, and adversarial workloads need more evidence.
 - Dependency and container vulnerabilities can appear after this point-in-time audit. Dependabot and the CI security gates must remain enabled and acted on.
 - GitHub secret scanning, push protection, private vulnerability reporting, and branch protection should be confirmed in repository settings while signed in.
 
 ## Release Decision
 
-Suitable for local single-owner trip editing with approved private media. Local-file import is ready. Google Photos is release-ready after the owner completes first consent and one real-album import/render acceptance run. Do not expose the local ports to another host or classify this as a hosted multi-tenant service.
+Suitable for local trip editing with approved private media. Local-file and
+user-authorized Picker imports are functional. The application should not be
+classified or operated as a hosted multi-tenant service without a separate
+security review.

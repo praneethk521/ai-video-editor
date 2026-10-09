@@ -5,9 +5,9 @@ release and cloud-deployment assumptions in older documents.
 
 ## Product Contract
 
-- The entire application runs on the owner's laptop: UI, database, queue,
-  downloads, analysis, editing, and rendering. No AWS, hosted website, public API,
-  Kubernetes deployment, or cloud storage is required.
+- The application runs in a user-controlled local environment: UI, database,
+  queue, downloads, analysis, editing, and rendering. No public deployment or
+  cloud storage is required for the primary workflow.
 - GitHub stores source code, tests, and documentation only. Never commit tokens,
   API keys, OAuth client files, private album links, original media, thumbnails,
   embeddings, analysis caches, local databases, or rendered videos.
@@ -17,10 +17,10 @@ release and cloud-deployment assumptions in older documents.
 - Output is a concise curated trip story, not every file concatenated together.
   Landscape default: 90 seconds, adjustable 15-300 seconds. Vertical default:
   30 seconds, adjustable 15-60 seconds. Never stretch weak content to fill time.
-- Owner reviews automatic selections, includes/excludes items, chooses a better
+- The user reviews automatic selections, includes/excludes items, chooses a better
   duplicate, changes clip trims, and approves before final rendering.
 - "Perfect" is an aspiration, not a guarantee. Release quality is measured by
-  the acceptance tests below and owner review of a real trip album.
+  the acceptance tests below and user review of representative trip media.
 
 ## Google Photos Access
 
@@ -32,11 +32,11 @@ locally, scan/probe, then delete the completed Picker session. Do not promise
 unattended album-link ingestion or scrape private share pages. An album name/link
 may label a project but is not authorization.
 
-Use `photospicker.mediaitems.readonly`, a fixed localhost callback, one-use
+Use `photospicker.mediaitems.readonly`, an approved loopback callback, one-use
 expiring state, PKCE where supported, encrypted tokens, refresh/re-consent,
 disconnect/revoke, bounded download retries, and resumable per-item import.
 Google credentials and consent are required even without a hosted app. Never
-ask the owner to make an album public. Original Photos content is read-only.
+ask the user to make an album public. Original Photos content is read-only.
 
 References checked 2026-10-05:
 - [API changes](https://developers.google.com/photos/support/updates)
@@ -175,13 +175,13 @@ is a release gate before pushing code.
 
 ## Current Evidence
 
-Yellowstone and a 35-item owner-selected Google Photos trip have completed the
-local import, review, render, validation, preview and download workflow in both
-formats. L3 is accepted for the Picker-supported selection flow. L7 now has a
-versioned story selector with semantic repetition limits, story beats and a
-suppression report; multi-frame video evidence remains. L8 has a working local
-MP3/WAV selection and render baseline, pending owner-audio acceptance. L9 has a
-retry-aware derived pipeline in the status response and dashboard. The L4 model
-still needs portrait/eye-state and large-album acceptance.
+Public fixtures and a private acceptance album have completed the import, review,
+render, validation, preview, and download workflow in both formats. L3 is
+accepted for the Picker-supported selection flow. L7 has a versioned story
+selector with semantic repetition limits, story beats, and a suppression report;
+multi-frame video evidence remains. L8 has a working local MP3/WAV selection and
+render baseline, pending broader audio acceptance. L9 has a retry-aware derived
+pipeline in the status response and dashboard. The L4 model still needs
+portrait/eye-state and large-album acceptance.
 Current results and next actions live in
 [status.md](status.md).

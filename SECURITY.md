@@ -8,7 +8,9 @@ Security fixes are applied to the current `main` branch. This project has not pu
 
 Do not open a public issue for a suspected vulnerability or include secrets, private media, access tokens, private locators, or customer data in a report.
 
-Use [GitHub private vulnerability reporting](https://github.com/praneethk521/ai-video-editor/security/advisories/new). If that option is unavailable, use the repository owner's private contact method listed on their GitHub profile and include only the minimum reproduction details needed to establish contact.
+Use this repository's **Security** tab to submit a private vulnerability report.
+If private reporting is unavailable, use the maintainer's private contact method
+and include only the minimum details needed to establish contact.
 
 Reports should include the affected component, impact, reproduction steps, and suggested mitigation when available. You can expect an initial acknowledgement within five business days. No production data or credentials are required to reproduce a report; use synthetic media and test-only tokens.
 

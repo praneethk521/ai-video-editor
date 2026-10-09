@@ -66,10 +66,10 @@ reviewing a personal album. NPS inputs/credits live under ignored
 `media/Yellowstone/`. Each run creates a new project and ignored
 `outputs/Yellowstone/<project-id>/` containing two videos, plans and report.
 
-Completed local project: `47a3dfd7-56c7-43f7-8ac3-17912cd716cf`.
-Open http://localhost:3001/?project=47a3dfd7-56c7-43f7-8ac3-17912cd716cf,
-enter the local token, then Refresh and Preview. This run samples the waterfall
-at 29.33s rather than taking only the opening footage.
+Open the dashboard using the address printed by the startup script and select the
+newly created project. Enter the local token, then refresh and preview the
+results. The fixture verifies that analysis can choose a useful interval rather
+than always taking the opening footage.
 
 ## Google Photos Is Next
 
