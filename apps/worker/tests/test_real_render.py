@@ -5,6 +5,7 @@ import hashlib
 import shutil
 import subprocess
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -12,6 +13,36 @@ from app import render
 from app.render import VideoRenderer
 from app.validation import OutputValidationError, detect_black_frames
 from video_shared.timeline import AssetSummary, build_timeline_plan
+
+
+def test_still_images_loop_after_scaling(tmp_path, monkeypatch):
+    root = tmp_path / "sources"
+    source = root / "project-test"
+    source.mkdir(parents=True)
+    photo = source / "large-photo.jpg"
+    photo.write_bytes(b"fixture")
+    commands = []
+
+    def fake_run(command, **_kwargs):
+        commands.append(command)
+        Path(command[-1]).write_bytes(b"rendered")
+        return subprocess.CompletedProcess(command, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(render, "settings", replace(render.settings, media_source_root=str(root)))
+    monkeypatch.setattr(render, "probe_media", lambda *_args: {
+        "mime_type": "image/jpeg", "duration_seconds": 0, "has_audio": False,
+    })
+    monkeypatch.setattr(render.subprocess, "run", fake_run)
+    monkeypatch.setattr(render, "validate_output_file", lambda *_args, **_kwargs: {"status": "passed"})
+    plan = build_timeline_plan("project-test", [AssetSummary("photo", 3)], "youtube_16x9")
+    VideoRenderer(tmp_path / "outputs").render(plan, sources={"photo": {
+        "relative_path": "project-test/large-photo.jpg",
+        "sha256": hashlib.sha256(photo.read_bytes()).hexdigest(),
+    }})
+
+    segment_command = commands[0]
+    assert "-loop" not in segment_command
+    assert "loop=loop=-1:size=1:start=0" in segment_command[segment_command.index("-vf") + 1]
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="real renderer test needs FFmpeg")

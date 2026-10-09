@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -133,6 +134,43 @@ def test_render_status_ignores_jobs_from_rejected_plans(client, auth_headers, db
                 timeline_plan_id=current_plan.id,
                 variant="youtube_16x9",
                 status=RenderStatus.succeeded,
+            ),
+        ]
+    )
+    db_session.flush()
+
+    refresh_project_render_status(db_session, project_id=project_id)
+
+    assert db_session.get(Project, project_id).status == ProjectStatus.ready
+
+
+def test_render_status_uses_latest_retry_for_approved_plan(client, auth_headers, db_session):
+    project_id = client.post("/projects", headers=auth_headers, json={"name": "Render retry"}).json()["id"]
+    plan = TimelinePlan(
+        project_id=project_id,
+        variant="youtube_16x9",
+        status=PlanStatus.approved,
+        confidence_score=0.9,
+        plan_json={},
+    )
+    db_session.add(plan)
+    db_session.flush()
+    started = datetime.now(UTC)
+    db_session.add_all(
+        [
+            RenderJob(
+                project_id=project_id,
+                timeline_plan_id=plan.id,
+                variant="youtube_16x9",
+                status=RenderStatus.failed,
+                created_at=started,
+            ),
+            RenderJob(
+                project_id=project_id,
+                timeline_plan_id=plan.id,
+                variant="youtube_16x9",
+                status=RenderStatus.succeeded,
+                created_at=started + timedelta(seconds=1),
             ),
         ]
     )

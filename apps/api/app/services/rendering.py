@@ -216,14 +216,18 @@ def refresh_project_render_status(db: Session, *, project_id: str) -> None:
     project = db.get(Project, project_id)
     if project is None:
         return
-    jobs = (
+    attempts = (
         db.query(RenderJob)
         .join(TimelinePlan, TimelinePlan.id == RenderJob.timeline_plan_id)
         .filter(
             RenderJob.project_id == project_id,
             TimelinePlan.status == PlanStatus.approved,
         )
+        .order_by(RenderJob.created_at.desc(), RenderJob.id.desc())
         .all()
     )
-    if jobs and all(job.status == RenderStatus.succeeded for job in jobs):
+    latest_by_plan = {}
+    for job in attempts:
+        latest_by_plan.setdefault(job.timeline_plan_id, job)
+    if latest_by_plan and all(job.status == RenderStatus.succeeded for job in latest_by_plan.values()):
         project.status = ProjectStatus.ready

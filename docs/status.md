@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-10-06
+Last updated: 2026-10-09
 
 ## Authoritative Scope
 
@@ -21,17 +21,17 @@ for creating a trip video from files on this Mac.
 | --- | --- | --- |
 | L1 Real local rendering | Working local baseline | Genuine HTTP uploads, ClamAV scans, Redis/RQ jobs, actual-source FFmpeg, original clip audio, private preview/download. JPEG/video color normalization and low-luma blue false-positive validation fixed. |
 | L2 Curation foundation | Implemented, limited | Local decoded-frame sharpness/exposure heuristics, exact/conservative near-duplicate grouping, bounded quality selection, sampled video start, reasons, target-duration regeneration, approval invalidation. Not a semantic model. |
-| L3 Google Photos | Live import validation | Project-scoped OAuth with PKCE/one-use state, encrypted token/session state, refresh, Picker create/poll/delete, pagination, trusted-host byte downloads, one-item resumable scan/staging, skip/cancel/revoke, progress UI and tests. The owner's unbilled Google project, testing audience, sole test user, exact Picker read-only scope and localhost client are configured. Owner consent and a real Picker selection now succeed; local import/render acceptance remains. Completed polls may omit their expired Picker URI and safely reuse only the prior validated URI for the matching session. Video downloads follow one exact HTTPS Google redirect without forwarding the bearer token. |
+| L3 Google Photos | Live end-to-end validation | Project-scoped OAuth with PKCE/one-use state, encrypted token/session state, refresh, Picker create/poll/delete, pagination, trusted-host byte downloads, one-item resumable scan/staging, skip/cancel/revoke, progress UI and tests. The owner's unbilled Google project, testing audience, sole test user, exact Picker read-only scope and localhost client are configured. Owner consent, real Picker selection, 35-item local import and both final renders now succeed. Completed polls may omit their expired Picker URI and safely reuse only the prior validated URI for the matching session. Video downloads follow one exact HTTPS Google redirect without forwarding the bearer token. |
 | L4 Local semantic model | Working local baseline | Ollama `qwen2.5vl:7b` runs locally through a loopback-only strict schema; confidence downgrades, eye/occlusion review, POI evidence, technical/editorial scoring and semantic story diversity are integrated. Needs portrait/closed-eye fixtures, multi-frame semantic video scoring and large-album performance validation. |
 | L5 Selection review | Working local baseline | Authenticated thumbnails, include/exclude/pin controls, clip ordering, bounded trims, duplicate-alternative labels, owner reasons, timeline rebuilding and approval invalidation work end to end. Side-by-side duplicate comparison and all-low-quality recovery remain. |
-| L6 Laptop acceptance | Partial | Yellowstone pipeline works; no real private Photos album or 500-file media workload tested. Phone formats/HDR, resumability/cancellation and disk limits remain. |
+| L6 Laptop acceptance | Working owner trip | Yellowstone and a real private Google Photos trip both complete locally. The owner trip produced validated 88.6s landscape and 30.0s portrait videos from 35 imported items. A 500-file workload, broader phone/HDR coverage, resumability/cancellation and disk limits remain. |
 
 Release command: `./scripts/start-local.sh`. Owner instructions:
 [`USE_YOUR_TRIP.md`](USE_YOUR_TRIP.md).
 
 ## Current Validation
 
-- API suite: 111 passed. Worker suite: 12 passed in the host environment; three
+- API suite: 115 passed. Worker suite: 13 passed in the host environment; three
   real FFmpeg tests are skipped there because FFmpeg is supplied by the worker
   container. The current container-backed run passed all 15, including real
   image/video/audio rendering and black/corrupt-output rejection.
@@ -65,23 +65,26 @@ Release command: `./scripts/start-local.sh`. Owner instructions:
 - Current npm and Python dependency audits report no known vulnerabilities after
   upgrading Next.js to 16.4.0 and PyJWT to 2.15.0. The Next.js production build,
   TypeScript and all 114 API tests pass.
-- Worker CI resolves the repository's shared Python package explicitly; all 15
+- Worker CI resolves the repository's shared Python package explicitly; all 16
   worker tests pass in a clean Linux Python 3.12/FFmpeg environment.
+- Real owner-trip project `3d24599e-a52b-4234-b6d0-d97bd0d0cf4d` imported 35
+  Google Photos items and produced validated H.264/AAC exports: 88.6s at
+  1920x1080 and 30.0s at 1080x1920. Large stills now scale once before their
+  frame is looped, reducing the observed 3s segment from over 30 minutes to
+  under one second. Successful retries supersede failed attempts for readiness.
 - Media and outputs remain gitignored. Docker context now excludes private data,
   credentials, local databases and model caches as well.
 
 ## Next Work (In Order)
 
-1. Complete the owner's Google passkey and Picker consent, then validate a real
-   selected album end to end. Do not reuse Drive scopes as Photos authorization
-   or make albums public.
-2. Validate the local model on portrait/open-eye/closed-eye/occlusion fixtures,
+1. Validate the local model on portrait/open-eye/closed-eye/occlusion fixtures,
    add multi-frame semantic video scoring, and benchmark/cache a large album.
-3. Add side-by-side duplicate comparison and an all-low-quality
+2. Add side-by-side duplicate comparison and an all-low-quality
    recovery path while preserving uncertain memories for manual decisions.
-4. Queue/cache analysis, resume/cancel imports, enforce total disk quotas; test
+3. Queue/cache analysis, resume/cancel imports, enforce total disk quotas; test
    phone formats, rotation/HDR and a large mixed album on this laptop.
-5. Finish local startup/backup/cleanup UX and owner-approved trip acceptance.
+4. Finish local startup/backup/cleanup UX and repeat owner acceptance with a
+   larger album before treating scale and format coverage as complete.
 
 ## Historical Infrastructure Work
 

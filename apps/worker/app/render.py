@@ -125,15 +125,14 @@ class VideoRenderer:
             for index, (clip, path, metadata, still, duration) in enumerate(resolved):
                 segment = directory / f"segment-{index}.mp4"
                 args = ["-protocol_whitelist", "file,pipe", "-threads", "2"]
-                if still:
-                    args += ["-loop", "1", "-framerate", str(fps)]
-                else:
+                if not still:
                     args += ["-ss", str(clip["start"])]
                 args += ["-i", str(path)]
                 has_audio = not still and metadata["has_audio"]
                 if not has_audio:
                     args += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
-                fit = f"scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2:out_range=tv:out_color_matrix=bt709,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps},format=yuv420p,setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709"
+                still_loop = ",loop=loop=-1:size=1:start=0" if still else ""
+                fit = f"scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2:out_range=tv:out_color_matrix=bt709,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1{still_loop},fps={fps},format=yuv420p,setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709"
                 args += ["-map", "0:v:0", "-map", "0:a:0" if has_audio else "1:a:0",
                          "-vf", fit, "-af", "aresample=48000,apad", "-t", str(duration),
                          "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-threads", "2",
