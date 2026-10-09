@@ -23,7 +23,7 @@ rendered outputs under the user's control.
 2. **Analyze** - Inspect media quality and extract bounded visual evidence.
 3. **Curate** - Select varied, high-quality moments and organize a story.
 4. **Review** - Let the user adjust selections and approve each output format.
-5. **Render** - Assemble visuals, original clip audio, and optional music.
+5. **Render** - Assemble visuals with the selected or original local soundtrack.
 6. **Ready** - Validate the finished files and make them available to the user.
 
 The application displays this flow for every project, including the current

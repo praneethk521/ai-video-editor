@@ -85,9 +85,13 @@ References checked 2026-10-05:
 ## Soundtrack Requirements
 
 1. Every new plan has a soundtrack. If no user-provided audio is available, the
-   renderer creates an original procedural score locally from approved presets;
-   it never searches, scrapes, streams, or downloads third-party music. Uploaded
-   audio must be licensed or otherwise permitted for the user's intended use.
+   renderer creates an original procedural score locally from approved presets.
+   Generated scores must use an arranged chord progression, distinct musical
+   sections, rhythmic and melodic movement, stereo variation, and smooth note
+   envelopes; a sustained tone or static chord is not an acceptable fallback.
+   The renderer never searches, scrapes, streams, or downloads third-party
+   music. Uploaded audio must be licensed or otherwise permitted for the user's
+   intended use.
 2. New plans select the most relevant eligible soundtrack by default. Ranking
    uses story-theme overlap from safe filename/embedded title, genre, and mood
    metadata, useful duration, and recency as a tie-breaker. The plan records the
@@ -95,8 +99,8 @@ References checked 2026-10-05:
    lets the user choose another soundtrack or explicitly choose no soundtrack.
    Changing it invalidates prior approval and requires a new render.
 3. Soundtrack selection is independent for landscape and vertical plans. The
-   selected asset ID, selection mode (`auto`, `manual`, or `none`), and mix
-   settings are stored in the versioned timeline plan.
+   selected asset ID, selection mode (`generated`, `auto`, `manual`, or `none`),
+   and mix settings are stored in the versioned timeline plan.
 4. Rendering loops or trims uploaded music to the visual duration, fades
    boundaries, and normalizes final loudness for YouTube. Source-video audio is
    muted in new plans so the selected or generated score is the only final audio.
@@ -174,7 +178,9 @@ is a release gate before pushing code.
   default, recency breaks equivalent ties, manual and none choices persist,
   source-video audio is absent from the final mix, and no network request is made
   to discover or retrieve music. A no-upload fixture receives a validated
-  original generated score with explicit preset provenance.
+  original generated score with explicit preset provenance. Automated waveform
+  checks reject a static drone by requiring meaningful section-level dynamics
+  and timbral movement; owner listening remains the final taste check.
 
 ## Current Evidence
 
@@ -183,7 +189,8 @@ render, validation, preview, and download workflow in both formats. L3 is
 accepted for the Picker-supported selection flow. L7 has a versioned story
 selector with semantic repetition limits, story beats, and a suppression report;
 multi-frame video evidence remains. L8 has a working local MP3/WAV selection and
-render baseline, pending broader audio acceptance. L9 has a retry-aware derived
+render baseline with arranged procedural score v2, pending broader owner audio
+and subjective listening acceptance. L9 has a retry-aware derived
 pipeline in the status response and dashboard. The L4 model still needs
 portrait/eye-state and large-album acceptance.
 Current results and next actions live in

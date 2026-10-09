@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.config import settings
+from app.music import generate_original_score
 from app.timeline import validate_timeline
 from app.validation import skipped_validation, validate_output_file
 from video_shared.media import probe_media, safe_component, source_path
@@ -163,7 +164,9 @@ class VideoRenderer:
                 original_gain = float(soundtrack_settings.get("original_gain_db", -3))
                 fade_out = max(0, cursor - 1)
                 if isinstance(soundtrack, str):
-                    music_input = ["-f", "lavfi", "-i", self._generated_audio_source(soundtrack, cursor)]
+                    generated_score = directory / "original-score.wav"
+                    generate_original_score(generated_score, soundtrack, cursor)
+                    music_input = ["-i", str(generated_score)]
                 else:
                     clip, path = soundtrack
                     music_input = ["-stream_loop", "-1", "-ss", str(clip["start"]), "-i", str(path)]
@@ -219,27 +222,6 @@ class VideoRenderer:
         if not metadata["mime_type"].startswith("audio/"):
             raise ValueError("soundtrack source must be an audio file")
         return clip, path
-
-    @staticmethod
-    def _generated_audio_source(preset: str, duration: float) -> str:
-        expressions = {
-            "calm_cinematic": (
-                "0.045*sin(2*PI*130.81*t)+0.035*sin(2*PI*164.81*t)+"
-                "0.025*sin(2*PI*196.00*t)"
-            ),
-            "bright_journey": (
-                "(0.04*sin(2*PI*220.00*t)+0.035*sin(2*PI*277.18*t)+"
-                "0.025*sin(2*PI*329.63*t))*(0.75+0.25*sin(2*PI*0.5*t))"
-            ),
-            "warm_memories": (
-                "(0.045*sin(2*PI*174.61*t)+0.035*sin(2*PI*220.00*t)+"
-                "0.025*sin(2*PI*261.63*t))*(0.85+0.15*sin(2*PI*0.2*t))"
-            ),
-        }
-        expression = expressions.get(preset)
-        if expression is None or not 0 < duration <= 900:
-            raise ValueError("generated soundtrack preset or duration is invalid")
-        return f"aevalsrc=exprs={expression}:s=48000:d={duration}"
 
     @staticmethod
     def _duration(plan: dict) -> float:

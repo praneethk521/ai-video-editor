@@ -14,10 +14,9 @@ confidence handling and semantic story diversity. Portrait/eye-state fixtures,
 multi-frame semantic video scoring and large-album measurements remain.
 
 Current gate status: L1-L6 have a working owner-trip path. L7 story intelligence,
-L8 owner-provided soundtrack selection/mixing, and L9 derived pipeline progress
-are the active product milestones. Pipeline visibility and semantic repetition
-control are first; soundtrack persistence and mixing follow behind the same
-versioned plan/review seam.
+L8 soundtrack selection/mixing, and L9 derived pipeline progress are the active
+product milestones. L8 and L9 have working baselines; semantic repetition,
+multi-frame video evidence, and owner quality acceptance remain active.
 See `status.md` for the exact acceptance evidence.
 
 ## L7 - Story Intelligence
@@ -32,13 +31,16 @@ Status: In progress
 
 ## L8 - Local Soundtrack
 
-Status: Planned
+Status: Working baseline
 
 - Accept and safely probe owner-provided audio files.
-- Default each new plan to the newest eligible project soundtrack.
+- Select the most story-relevant eligible project soundtrack by default.
 - Offer manual soundtrack and no-soundtrack choices in plan review.
-- Mix music under useful original audio with fades and YouTube loudness targets.
+- Generate an arranged original local score when the user supplies no audio.
+- Mute source-video audio, apply fades, and meet YouTube loudness targets.
 - Validate soundtrack provenance, output audio, duration, and decode.
+- Complete owner listening acceptance across all generated presets and broader
+  uploaded-audio fixtures.
 
 ## L9 - Project Pipeline Experience
 
@@ -89,10 +91,12 @@ Status: In progress
 
 Status: In progress
 
-Historical blocker resolved: the worker now composes actual source media, retains
-clip audio, validates decode/resolution/duration/audio/black frames and produces
-private local landscape and vertical MP4 outputs. Transitions, music and
-face-aware vertical crops remain future quality work.
+Historical blocker resolved: the worker now composes actual source media,
+replaces source audio with the selected soundtrack, validates
+decode/resolution/duration/audio/black frames and produces private local
+landscape and vertical MP4 outputs. Transitions and face-aware vertical crops
+remain future quality work; soundtrack generation and selection now have a
+working baseline.
 
 - FFmpeg/Remotion production renderer.
 - Captions, transitions, audio normalization, vertical subject crop.

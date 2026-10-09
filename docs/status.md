@@ -26,7 +26,7 @@ for creating a trip video from local files.
 | L5 Selection review | Working local baseline | Authenticated thumbnails, include/exclude/pin controls, clip ordering, bounded trims, duplicate-alternative labels, owner reasons, timeline rebuilding and approval invalidation work end to end. Side-by-side duplicate comparison and all-low-quality recovery remain. |
 | L6 Local acceptance | Working baseline | Public sample media and a private acceptance album both complete the workflow locally in landscape and portrait formats. A 500-file workload, broader phone/HDR coverage, resumability/cancellation and disk limits remain. |
 | L7 Story intelligence | In progress | `local_story_curation_v2` limits semantic repetition to two moments per story group, preserves chronology, assigns opening/people/journey/highlight/detail/closing beats, and reports duplicate/semantic suppression. Multi-frame video semantics and cross-media visual duplicate evidence remain. |
-| L8 Local soundtrack | Working baseline | Local MP3/WAV upload and metadata probing, story-relevant automatic selection, an original procedural fallback when no audio is uploaded, manual/none controls, source-audio muting, approval invalidation, fades, -14 LUFS output and private provenance metadata are implemented. Broader audio fixtures and subjective score review remain. |
+| L8 Local soundtrack | Working baseline | Local MP3/WAV upload and metadata probing, story-relevant automatic selection, an arranged original procedural fallback when no audio is uploaded, manual/none controls, source-audio muting, approval invalidation, fades, -14 LUFS output and private provenance metadata are implemented. Procedural score v2 adds chord progressions, section builds, bass, melodic motifs, pulse, stereo movement and smooth envelopes. Broader audio fixtures and owner listening review remain. |
 | L9 Pipeline experience | Implemented baseline | Status derives Import → Analyze → Curate → Review → Render → Ready from durable records, reports current/next action, and ignores superseded failed renders. The dashboard now presents a numbered, icon-led directional flow with explicit state labels and next action; desktop and narrow-viewport visual inspections pass. |
 
 Release command: `./scripts/start-local.sh`. Owner instructions:
@@ -34,10 +34,9 @@ Release command: `./scripts/start-local.sh`. Owner instructions:
 
 ## Current Validation
 
-- API suite: 122 passed. Worker suite: 14 passed in the host environment; three
-  real FFmpeg tests are skipped there because FFmpeg is supplied by the worker
-  container. The current container-backed run passed all 15, including real
-  image/video/audio rendering and black/corrupt-output rejection.
+- API suite: 124 passed. The current container-backed worker run passed all 23,
+  including real image/video/audio rendering, generated-score quality checks,
+  deterministic preset generation and black/corrupt-output rejection.
 - Ruff, TypeScript and Next.js production build pass. Desktop video decodes and
   the selection/duration UI fits a 390px mobile viewport without horizontal overflow.
 - Semantic exports passed decode, resolution, duration, audio, and black-frame
@@ -61,8 +60,8 @@ Release command: `./scripts/start-local.sh`. Owner instructions:
   and local state are gitignored; downloaded OAuth credential JSON was removed.
 - Current npm and Python dependency audits report no known vulnerabilities after
   upgrading Next.js to 16.4.0 and PyJWT to 2.15.0. The Next.js production build,
-  TypeScript and all 122 API tests pass.
-- Worker CI resolves the repository's shared Python package explicitly; all 17
+  TypeScript and all 124 API tests pass.
+- Worker CI resolves the repository's shared Python package explicitly; all 23
   worker tests pass in a clean Linux Python 3.12/FFmpeg environment.
 - A private acceptance project imported a multi-item Google Photos selection and
   produced validated H.264/AAC landscape and portrait exports. Large stills now
@@ -70,7 +69,11 @@ Release command: `./scripts/start-local.sh`. Owner instructions:
   attempts for readiness.
 - Soundtrack container acceptance passes for landscape and vertical outputs: a
   short WAV loops across the timeline, fades at both boundaries, is audible on
-  photo segments, mixes with original video audio, and validates at -14 LUFS.
+  photo segments, replaces source-video audio, and validates at -14 LUFS.
+- The generated-score regression now rejects the former static three-tone drone.
+  A 16-second calm score varies section loudness by more than 25% and changes its
+  waveform profile while remaining deterministic, locally generated and free of
+  sampled or downloaded music.
 - The project status endpoint derives all six pipeline steps from durable data;
   a completed project reports approved plans, successful latest renders, and
   validated outputs. The dashboard flow has no overlap at
@@ -82,8 +85,9 @@ Release command: `./scripts/start-local.sh`. Owner instructions:
 
 1. Extend local analysis to multi-frame video similarity and semantic scoring,
    including conservative photo/video and video/video duplicate evidence.
-2. Validate soundtrack mixing with owner-provided audio and expose mix/fade
-   controls only if the automatic levels need adjustment in acceptance review.
+2. Complete owner listening acceptance for all three generated score presets;
+   validate owner-provided audio and expose mix/fade controls only if automatic
+   levels need adjustment.
 3. Validate the local model on portrait/open-eye/closed-eye/occlusion fixtures
    and benchmark/cache a large album.
 4. Add side-by-side duplicate comparison and an all-low-quality
