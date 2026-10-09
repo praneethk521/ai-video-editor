@@ -15,11 +15,12 @@
       "required": ["method", "target_seconds", "duration_seconds", "decisions", "limitations"],
       "additionalProperties": false,
       "properties": {
-        "method": { "type": "string", "enum": ["local_technical_quality_v1", "local_semantic_curation_v1", "owner_reviewed_v1"] },
+        "method": { "type": "string", "enum": ["local_technical_quality_v1", "local_semantic_curation_v1", "local_story_curation_v2", "owner_reviewed_v1"] },
         "target_seconds": { "type": "number", "minimum": 1, "maximum": 300 },
         "duration_seconds": { "type": "number", "minimum": 0, "maximum": 300 },
         "decisions": { "type": "array", "maxItems": 500, "items": { "type": "object" } },
-        "limitations": { "type": "array", "items": { "type": "string" } }
+        "limitations": { "type": "array", "items": { "type": "string" } },
+        "story": { "type": "object" }
       }
     },
     "strategy": {
@@ -32,6 +33,18 @@
         "description": { "type": "string" },
         "hashtags": { "type": "array", "items": { "type": "string" } },
         "review_notes": { "type": "string" }
+      }
+    },
+    "soundtrack": {
+      "type": "object",
+      "required": ["mode", "asset_id", "filename", "music_gain_db", "original_gain_db"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "enum": ["latest", "manual", "none"] },
+        "asset_id": { "type": ["string", "null"] },
+        "filename": { "type": ["string", "null"] },
+        "music_gain_db": { "type": "number", "minimum": -40, "maximum": 0 },
+        "original_gain_db": { "type": "number", "minimum": -40, "maximum": 0 }
       }
     },
     "tracks": {

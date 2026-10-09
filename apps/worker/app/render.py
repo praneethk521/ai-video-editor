@@ -72,14 +72,17 @@ class VideoRenderer:
                 "manual_upload_only": True,
                 "delivery_target": settings.output_storage_provider,
                 "delivery_status": "private_staging",
+                "soundtrack": plan.get("soundtrack") or {"mode": "none", "asset_id": None},
             },
         )
 
     def _render_sources(self, output_path: Path, plan: dict, sources: dict) -> None:
         tracks = plan["tracks"]
-        if len(tracks) != 1 or tracks[0]["type"] != "video":
-            raise ValueError("montage rendering requires one video track")
-        clips = tracks[0]["clips"]
+        video_tracks = [track for track in tracks if track["type"] == "video"]
+        audio_tracks = [track for track in tracks if track["type"] == "audio"]
+        if len(video_tracks) != 1 or len(audio_tracks) > 1 or len(video_tracks) + len(audio_tracks) != len(tracks):
+            raise ValueError("montage rendering requires one video track and at most one soundtrack")
+        clips = video_tracks[0]["clips"]
         export = plan["export"]
         width, height, fps = export["width"], export["height"], export["fps"]
         if not 1 <= len(clips) <= 100 or (width, height) not in {(1920, 1080), (1080, 1920)} or fps != 30:
@@ -110,6 +113,7 @@ class VideoRenderer:
             cursor += duration
         if cursor > min(export.get("max_duration_seconds", 900), 900):
             raise ValueError("timeline exceeds export duration limit")
+        soundtrack = self._resolve_soundtrack(plan, audio_tracks, sources, cursor)
         deadline = time.monotonic() + settings.max_job_seconds
 
         def run(command: list[str]) -> None:
@@ -142,12 +146,63 @@ class VideoRenderer:
                 segments.append(segment)
             concat = directory / "concat.txt"
             concat.write_text("".join(f"file '{segment.name}'\n" for segment in segments))
-            run(["-f", "concat", "-safe", "1", "-i", str(concat), "-c", "copy", "-movflags", "+faststart", str(output_path)])
+            assembled = directory / "assembled.mp4"
+            run(["-f", "concat", "-safe", "1", "-i", str(concat), "-c", "copy", str(assembled)])
+            if soundtrack is None:
+                assembled.replace(output_path)
+            else:
+                clip, path = soundtrack
+                soundtrack_settings = plan.get("soundtrack") or {}
+                music_gain = float(soundtrack_settings.get("music_gain_db", -13))
+                original_gain = float(soundtrack_settings.get("original_gain_db", -3))
+                fade_out = max(0, cursor - 1)
+                mix = (
+                    f"[0:a]volume={original_gain}dB[original];"
+                    f"[1:a]volume={music_gain}dB,afade=t=in:st=0:d=1,"
+                    f"afade=t=out:st={fade_out}:d=1[music];"
+                    "[original][music]amix=inputs=2:duration=first:dropout_transition=2,"
+                    "loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
+                )
+                run(["-i", str(assembled), "-stream_loop", "-1", "-ss", str(clip["start"]), "-i", str(path),
+                     "-filter_complex", mix, "-map", "0:v:0", "-map", "[aout]", "-t", str(cursor),
+                     "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
+                     "-movflags", "+faststart", "-map_metadata", "-1", str(output_path)])
+
+    @staticmethod
+    def _resolve_soundtrack(plan: dict, audio_tracks: list[dict], sources: dict, duration: float):
+        configured = plan.get("soundtrack") or {}
+        if not audio_tracks:
+            if configured.get("mode") not in {None, "none"}:
+                raise ValueError("soundtrack selection is missing its audio track")
+            return None
+        clips = audio_tracks[0].get("clips") or []
+        if len(clips) != 1:
+            raise ValueError("soundtrack requires exactly one audio clip")
+        clip = clips[0]
+        if (clip.get("effect") != "soundtrack" or clip.get("timeline_start") != 0
+                or clip.get("start", -1) < 0 or abs(clip.get("end", 0) - duration) > 0.01):
+            raise ValueError("soundtrack clip must span the visual timeline")
+        if configured.get("asset_id") != clip.get("asset_id") or configured.get("mode") not in {"latest", "manual"}:
+            raise ValueError("soundtrack metadata does not match its audio track")
+        source = sources.get(clip["asset_id"])
+        if not source:
+            raise ValueError("source manifest is missing the soundtrack asset")
+        path = source_path(Path(settings.media_source_root), plan["project_id"], source["relative_path"])
+        with path.open("rb") as stream:
+            checksum = hashlib.file_digest(stream, "sha256").hexdigest()
+        if checksum != source["sha256"]:
+            raise ValueError("soundtrack source changed after validation")
+        metadata = probe_media(path, settings.ffprobe_path)
+        if not metadata["mime_type"].startswith("audio/"):
+            raise ValueError("soundtrack source must be an audio file")
+        return clip, path
 
     @staticmethod
     def _duration(plan: dict) -> float:
         max_end = 0.0
         for track in plan["tracks"]:
+            if track["type"] != "video":
+                continue
             for clip in track["clips"]:
                 max_end = max(max_end, clip["timeline_start"] + (clip["end"] - clip["start"]))
         return round(max_end, 2)

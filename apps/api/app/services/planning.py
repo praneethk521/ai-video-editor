@@ -33,8 +33,11 @@ def analyze_and_plan(db: Session, *, project_id: str) -> tuple[AnalysisResult, l
     if not assets:
         raise ValueError("project has no media assets")
     require_clean_media_assets(assets)
+    visual_assets = [asset for asset in assets if not asset.mime_type.startswith("audio/")]
+    if not visual_assets:
+        raise ValueError("project has no photos or videos to analyze")
 
-    analysis = analyze_with_tracing(assets)
+    analysis = analyze_with_tracing(visual_assets)
     result = AnalysisResult(
         project_id=project_id,
         provider=analysis.provider,
@@ -198,7 +201,10 @@ def regenerate_timeline_plans(db: Session, *, project_id: str, variants: list[st
 
     analysis_result = latest_analysis_result(db, project_id=project_id)
     if analysis_result is None:
-        analysis = analyze_with_tracing(assets)
+        visual_assets = [asset for asset in assets if not asset.mime_type.startswith("audio/")]
+        if not visual_assets:
+            raise ValueError("project has no photos or videos to analyze")
+        analysis = analyze_with_tracing(visual_assets)
         analysis_result = AnalysisResult(project_id=project_id, provider=analysis.provider, result_json=analysis.result)
         db.add(analysis_result)
 
@@ -228,6 +234,7 @@ def create_timeline_plans(
     asset_summaries = asset_summaries_from_analysis(analysis_json)
     db.flush()
     plans = []
+    default_soundtrack = latest_soundtrack(db, project_id=project_id)
     for variant in variants:
         local_curation = analysis_json.get("provider") in {"local-pixel-quality-v1", "local-vision-curation-v1"}
         selection = None
@@ -241,6 +248,7 @@ def create_timeline_plans(
             asset_summaries = [AssetSummary(asset_id=item["asset_id"], duration_seconds=item["selected_duration"],
                                             source_start=item["selected_start"]) for item in selection["selected"]]
         plan_json = build_timeline_plan(project_id, asset_summaries, variant, curated=local_curation)
+        plan_json = apply_soundtrack(plan_json, default_soundtrack, mode="latest" if default_soundtrack else "none")
         if selection is not None:
             plan_json["selection"] = {key: value for key, value in selection.items() if key != "selected"}
             plan_json["export"]["max_duration_seconds"] = int(selection["target_seconds"])
@@ -265,6 +273,79 @@ def create_timeline_plans(
         db.add(plan)
         plans.append(plan)
     return plans
+
+
+def set_plan_soundtrack(
+    db: Session,
+    *,
+    project_id: str,
+    plan_id: str,
+    mode: str,
+    asset_id: str | None,
+) -> TimelinePlan:
+    plan = get_project_plan(db, project_id=project_id, plan_id=plan_id)
+    if mode == "none":
+        soundtrack = None
+    elif mode == "latest":
+        soundtrack = latest_soundtrack(db, project_id=project_id)
+        if soundtrack is None:
+            raise ValueError("project has no eligible soundtrack audio")
+    elif mode == "manual":
+        soundtrack = db.get(MediaAsset, asset_id) if asset_id else None
+        if (soundtrack is None or soundtrack.project_id != project_id
+                or not soundtrack.mime_type.startswith("audio/") or soundtrack.malware_scan_status != "clean"):
+            raise ValueError("selected soundtrack is not an eligible project audio file")
+    else:
+        raise ValueError("unsupported soundtrack selection mode")
+
+    plan_json = apply_soundtrack(dict(plan.plan_json), soundtrack, mode=mode)
+    plan_json["version"] = int(plan_json.get("version", 1)) + 1
+    plan.plan_json = plan_json
+    plan.status = PlanStatus.draft
+    plan.approved_at = None
+    project = db.get(Project, project_id)
+    if project is not None:
+        project.status = ProjectStatus.planned
+    return plan
+
+
+def latest_soundtrack(db: Session, *, project_id: str) -> MediaAsset | None:
+    return (
+        db.query(MediaAsset)
+        .filter(
+            MediaAsset.project_id == project_id,
+            MediaAsset.mime_type.in_(["audio/mpeg", "audio/wav"]),
+            MediaAsset.malware_scan_status == "clean",
+        )
+        .order_by(MediaAsset.created_at.desc(), MediaAsset.id.desc())
+        .first()
+    )
+
+
+def apply_soundtrack(plan_json: dict, soundtrack: MediaAsset | None, *, mode: str) -> dict:
+    tracks = [track for track in plan_json.get("tracks", []) if track.get("type") != "audio"]
+    duration = max(
+        (clip["timeline_start"] + clip["end"] - clip["start"]
+         for track in tracks if track.get("type") == "video" for clip in track.get("clips", [])),
+        default=0,
+    )
+    if soundtrack is not None:
+        tracks.append({"type": "audio", "clips": [{
+            "asset_id": soundtrack.id,
+            "start": 0,
+            "end": round(duration, 2),
+            "timeline_start": 0,
+            "effect": "soundtrack",
+        }]})
+    plan_json["tracks"] = tracks
+    plan_json["soundtrack"] = {
+        "mode": mode,
+        "asset_id": soundtrack.id if soundtrack else None,
+        "filename": soundtrack.original_filename if soundtrack else None,
+        "music_gain_db": -13,
+        "original_gain_db": -3,
+    }
+    return plan_json
 
 
 def latest_analysis_result(db: Session, *, project_id: str) -> AnalysisResult | None:

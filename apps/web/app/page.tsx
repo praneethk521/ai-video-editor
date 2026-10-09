@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   CheckCircle2,
+  Circle,
   Clapperboard,
   Download,
   FileVideo,
@@ -53,7 +54,13 @@ type TimelinePlanBody = {
       start?: number;
       duration?: number;
       pinned?: boolean;
+      story_beat?: string;
     }>;
+  };
+  soundtrack?: {
+    mode: "latest" | "manual" | "none";
+    asset_id?: string | null;
+    filename?: string | null;
   };
   tracks?: TimelineTrack[];
   strategy?: {
@@ -106,12 +113,39 @@ type TimelinePlan = {
   review_notes?: string | null;
 };
 
+type PipelineStep = {
+  id: string;
+  label: string;
+  state: "pending" | "current" | "complete" | "failed";
+  detail: string;
+};
+
+type ProjectPipeline = {
+  current_step: string;
+  next_action: string;
+  steps: PipelineStep[];
+};
+
+const emptyPipeline: ProjectPipeline = {
+  current_step: "import",
+  next_action: "Select or create a project",
+  steps: [
+    { id: "import", label: "Import", state: "pending", detail: "Waiting for a project" },
+    { id: "analyze", label: "Analyze", state: "pending", detail: "Pending" },
+    { id: "curate", label: "Curate", state: "pending", detail: "Pending" },
+    { id: "review", label: "Review", state: "pending", detail: "Pending" },
+    { id: "render", label: "Render", state: "pending", detail: "Pending" },
+    { id: "ready", label: "Ready", state: "pending", detail: "Pending" }
+  ]
+};
+
 type ProjectStatus = {
   project_id: string;
   status: string;
   role: ProjectRole;
   media_count: number;
   render_jobs: Array<{ id: string; variant: string; status: string }>;
+  pipeline: ProjectPipeline;
 };
 
 type OutputVideo = {
@@ -524,7 +558,7 @@ export default function Page() {
     if (!targetProjectId) return;
     const response = await api<{ media: MediaAsset[] }>(`/projects/${targetProjectId}/media`);
     setMedia(response.media);
-    const missing = response.media.filter((asset) => !thumbnailUrls.current[asset.id]);
+    const missing = response.media.filter((asset) => !asset.mime_type.startsWith("audio/") && !thumbnailUrls.current[asset.id]);
     for (let offset = 0; offset < missing.length; offset += 4) {
       await Promise.all(missing.slice(offset, offset + 4).map(async (asset) => {
         const response = await fetch(
@@ -568,6 +602,17 @@ export default function Page() {
     });
   }
 
+  async function updateSoundtrack(planId: string, value: string) {
+    await run("Soundtrack updated", async () => {
+      const mode = value === "latest" || value === "none" ? value : "manual";
+      await api(`/projects/${projectId}/plans/${planId}/soundtrack`, {
+        method: "PUT",
+        body: JSON.stringify({ mode, asset_id: mode === "manual" ? value : null })
+      });
+      await Promise.all([refreshPlans(), refreshStatus()]);
+    });
+  }
+
   async function refreshAnalysis(targetProjectId = projectId) {
     if (!targetProjectId) return;
     const response = await api<{ results: AnalysisResult[] }>(`/projects/${targetProjectId}/analysis`);
@@ -581,7 +626,17 @@ export default function Page() {
         body: JSON.stringify({ name: projectName })
       });
       setProjectId(project.id);
-      setStatus({ project_id: project.id, status: project.status, role: "owner", media_count: 0, render_jobs: [] });
+      setStatus({
+        project_id: project.id,
+        status: project.status,
+        role: "owner",
+        media_count: 0,
+        render_jobs: [],
+        pipeline: { ...emptyPipeline, next_action: "Import photos and videos", steps: emptyPipeline.steps.map((step, index) => ({
+          ...step,
+          state: index === 0 ? "current" : "pending"
+        })) }
+      });
       setProjectRole("owner");
       setPlans([]);
       setOutputs([]);
@@ -850,6 +905,30 @@ export default function Page() {
           </div>
         </header>
 
+        <section className="panel pipelinePanel" aria-label="Project pipeline">
+          <div className="pipelineHeader">
+            <h2>Trip pipeline</h2>
+            <span>{status?.pipeline.next_action ?? emptyPipeline.next_action}</span>
+          </div>
+          <ol className="pipelineFlow">
+            {(status?.pipeline.steps ?? emptyPipeline.steps).map((step) => (
+              <li
+                className={`pipelineStep ${step.state}`}
+                key={step.id}
+                aria-current={status?.pipeline.current_step === step.id ? "step" : undefined}
+              >
+                <span className="pipelineIcon" aria-hidden="true">
+                  {step.state === "complete" ? <CheckCircle2 size={18} /> :
+                    step.state === "failed" ? <XCircle size={18} /> :
+                      step.state === "current" ? <Loader2 className="spin" size={18} /> : <Circle size={18} />}
+                </span>
+                <strong>{step.label}</strong>
+                <span>{step.detail}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+
         <section className="statusGrid">
           <article className="statusCard">
             <GitBranch size={20} />
@@ -952,8 +1031,8 @@ export default function Page() {
               <input value={folderUrl} onChange={(event) => setFolderUrl(event.target.value)} />
             </label>
             <label>
-              Photos and videos
-              <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+              Photos, videos, and soundtrack
+              <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm,audio/mpeg,audio/wav"
                 disabled={!projectId || busy !== null || !canOperate}
                 onChange={(event) => setSelectedFiles(Array.from(event.target.files ?? []))} />
             </label>
@@ -1048,6 +1127,10 @@ export default function Page() {
               </div>
               {plans.map((plan) => {
                 const edits = planEdits[plan.id] ?? [];
+                const soundtrackValue = plan.plan.soundtrack?.mode === "manual"
+                  ? plan.plan.soundtrack.asset_id ?? "none"
+                  : plan.plan.soundtrack?.mode ?? "none";
+                const soundtrackAssets = media.filter((asset) => asset.mime_type.startsWith("audio/"));
                 const selectedDuration = edits.filter((item) => item.selected || item.pinned)
                   .reduce((total, item) => total + Number(item.duration || 0), 0);
                 return <article className="planCard" key={plan.id}>
@@ -1066,6 +1149,20 @@ export default function Page() {
                     <span>{plan.plan.export?.fps ?? 30} fps</span>
                   </div>
                   <p>{plan.plan.strategy?.hook ?? "Timeline strategy pending."}</p>
+                  <label className="soundtrackField">
+                    Soundtrack
+                    <select
+                      value={soundtrackValue}
+                      onChange={(event) => void updateSoundtrack(plan.id, event.target.value)}
+                      disabled={busy !== null || !canReview}
+                    >
+                      {soundtrackAssets.length > 0 ? <option value="latest">Newest uploaded audio</option> : null}
+                      <option value="none">No soundtrack</option>
+                      {soundtrackAssets.map((asset) => (
+                        <option key={asset.id} value={asset.id}>{asset.filename}</option>
+                      ))}
+                    </select>
+                  </label>
                   {plan.plan.selection && plan.status !== "rejected" ? <details className="selectionReview" open={plan.status === "draft"}>
                     <summary>Review media ({edits.filter((item) => item.selected || item.pinned).length} selected · {selectedDuration.toFixed(1)}s)</summary>
                     <div className="selectionGrid">{edits.map((edit, decisionIndex) => {
@@ -1086,6 +1183,7 @@ export default function Page() {
                             <span>{Math.round(decision.score * 100)}%</span>
                           </div>
                           <span className="decisionReasons">{decision.reasons.map((reason) => reason.replaceAll("_", " ")).join(" · ")}</span>
+                          {decision.story_beat ? <span className="storyBeat">{decision.story_beat}</span> : null}
                           {decision.alternative_to ? <span className="duplicateNote">
                             Alternative to {mediaById[decision.alternative_to]?.filename ?? "another similar item"}
                           </span> : null}

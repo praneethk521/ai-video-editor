@@ -23,19 +23,29 @@ def source_path(root: Path, project_id: str, relative_path: str) -> Path:
 def probe_media(path: Path, ffprobe: str = "ffprobe") -> dict:
     completed = subprocess.run(
         [ffprobe, "-v", "error", "-protocol_whitelist", "file,pipe",
-         "-format_whitelist", "image2,jpeg_pipe,png_pipe,webp_pipe,mov,matroska,webm",
+         "-format_whitelist", "image2,jpeg_pipe,png_pipe,webp_pipe,mov,matroska,webm,mp3,wav",
          "-show_streams", "-show_format", "-of", "json", str(path)],
         check=True, capture_output=True, text=True, timeout=30,
     )
     payload = json.loads(completed.stdout)
     streams = payload.get("streams", [])
     video = next((stream for stream in streams if stream.get("codec_type") == "video"), None)
+    audio = next((stream for stream in streams if stream.get("codec_type") == "audio"), None)
+    container = payload.get("format", {}).get("format_name", "")
     if not video:
-        raise ValueError("a supported image or video stream is required")
+        if not audio:
+            raise ValueError("a supported image, video, or audio stream is required")
+        duration = float(payload.get("format", {}).get("duration") or audio.get("duration") or 0)
+        if not 0 < duration <= 3600:
+            raise ValueError("audio duration must be between zero and one hour")
+        mime = "audio/mpeg" if "mp3" in container else "audio/wav" if "wav" in container else None
+        if not mime:
+            raise ValueError("unsupported audio encoding")
+        return {"mime_type": mime, "duration_seconds": duration, "width": 0, "height": 0,
+                "orientation": "audio", "has_audio": True}
     width, height = int(video["width"]), int(video["height"])
     if width < 1 or height < 1 or width * height > 50_000_000:
         raise ValueError("media dimensions exceed the supported limit")
-    container = payload.get("format", {}).get("format_name", "")
     is_image = container in {"image2", "jpeg_pipe", "png_pipe", "webp_pipe"}
     codec = video.get("codec_name", "")
     if is_image:

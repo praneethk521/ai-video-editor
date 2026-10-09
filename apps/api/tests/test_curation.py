@@ -1,4 +1,5 @@
 import math
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -6,7 +7,7 @@ from app.services.local_analysis import SIDE, inspect_pixels
 from app.services import local_vision
 from app.services.local_vision import VisionEvidence, conservative_evidence, feature_fields
 from app.services.planning import create_timeline_plans, approve_timeline_plan
-from app.models.entities import PlanStatus
+from app.models.entities import MediaAsset, PlanStatus
 from video_shared.curation import select_candidates
 
 
@@ -43,7 +44,27 @@ def test_semantic_selection_prefers_story_diversity_and_capture_order():
     ]
     result = select_candidates(items, target_seconds=6, max_clip_seconds=3)
     assert [item["asset_id"] for item in result["selected"]] == ["geyser-best", "waterfall"]
-    assert result["method"] == "local_semantic_curation_v1"
+    assert result["method"] == "local_story_curation_v2"
+
+
+def test_semantic_selection_does_not_pad_with_one_repeated_story():
+    items = [
+        candidate(f"geyser-{index}", 0.95 - index / 100, editorial_score=0.95 - index / 100,
+                  story_group="landmark:geothermal", semantic={"confidence": 0.9},
+                  capture_time=f"2026-01-01T12:00:0{index}Z")
+        for index in range(5)
+    ] + [
+        candidate("waterfall", 0.8, editorial_score=0.8, story_group="landscape:waterfall",
+                  semantic={"confidence": 0.9}, capture_time="2026-01-01T13:00:00Z")
+    ]
+
+    result = select_candidates(items, target_seconds=30, max_clip_seconds=3)
+
+    assert [item["asset_id"] for item in result["selected"]] == ["geyser-0", "geyser-1", "waterfall"]
+    decisions = {item["asset_id"]: item for item in result["decisions"]}
+    assert decisions["geyser-2"]["reasons"] == ["semantic_repetition"]
+    assert result["story"]["semantic_repetitions_suppressed"] == 3
+    assert result["story"]["story_groups_covered"] == 2
 
 
 def test_confident_closed_eyes_are_held_for_review():
@@ -165,3 +186,31 @@ def test_curated_plan_budget_and_regeneration_invalidates_approval(client, auth_
     approve_timeline_plan(db_session, project_id=project_id, plan_id=first.id, notes=None)
     create_timeline_plans(db_session, project_id=project_id, analysis_json=analysis, variants=["shorts_9x16"])
     assert first.status == PlanStatus.rejected
+
+
+def test_new_plan_defaults_to_latest_project_soundtrack(client, auth_headers, db_session):
+    project_id = client.post("/projects", headers=auth_headers, json={"name": "Soundtrack"}).json()["id"]
+    started = datetime.now(UTC)
+    older = MediaAsset(
+        project_id=project_id, original_filename="older.mp3", sanitized_filename="older.mp3",
+        mime_type="audio/mpeg", size_bytes=100, duration_seconds=60, orientation="audio",
+        private_locator=f"file://private/sources/{project_id}/older", malware_scan_status="clean",
+        metadata_json={}, created_at=started,
+    )
+    newer = MediaAsset(
+        project_id=project_id, original_filename="newer.wav", sanitized_filename="newer.wav",
+        mime_type="audio/wav", size_bytes=100, duration_seconds=60, orientation="audio",
+        private_locator=f"file://private/sources/{project_id}/newer", malware_scan_status="clean",
+        metadata_json={}, created_at=started + timedelta(seconds=1),
+    )
+    db_session.add_all([older, newer])
+    db_session.flush()
+    analysis = {"provider": "local-pixel-quality-v1", "asset_features": [candidate("photo")]}
+
+    plan = create_timeline_plans(
+        db_session, project_id=project_id, analysis_json=analysis, variants=["youtube_16x9"]
+    )[0]
+
+    assert plan.plan_json["soundtrack"]["mode"] == "latest"
+    assert plan.plan_json["soundtrack"]["asset_id"] == newer.id
+    assert plan.plan_json["tracks"][1]["type"] == "audio"

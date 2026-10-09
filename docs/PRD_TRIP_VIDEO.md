@@ -1,6 +1,6 @@
 # Local Trip Video Editor: Product Requirements
 
-Updated 2026-10-06. Authoritative user scope; supersedes earlier montage-only
+Updated 2026-10-09. Authoritative user scope; supersedes earlier montage-only
 release and cloud-deployment assumptions in older documents.
 
 ## Product Contract
@@ -67,6 +67,56 @@ References checked 2026-10-05:
 8. Manual choices override automatic taste judgments, but not corrupt/unsafe
    inputs. Forced inclusions exceeding the budget require a budget/selection
    change; never silently ignore the budget or user choices.
+9. Treat story construction as an ordered editorial problem, not a score sort.
+   Build an opening, journey, highlights, human/activity or detail beats when
+   evidence supports them, and a closing. Preserve chronology inside that arc
+   unless the owner changes the order.
+10. Suppress three kinds of repetition: byte-identical media, visually
+    interchangeable photos/video samples, and excessive semantic repetition
+    from one story group. A longer target must never be filled by near-identical
+    moments. Keep the strongest representative and expose alternatives.
+11. Analyze multiple frames from videos for visual similarity, semantic change,
+    highlight interval choice, and story value. A single best frame is not enough
+    evidence to call a video unique or representative.
+12. Each generated plan must record story beats and a curation report with the
+    number of exact/visual/semantic repetitions suppressed, story groups covered,
+    and unresolved review items.
+
+## Soundtrack Requirements
+
+1. A soundtrack is optional and must be an owner-provided local audio file that
+   the owner is licensed or otherwise permitted to use. Never scrape, stream, or
+   silently download a current commercial song. "Latest audio" means the newest
+   eligible soundtrack asset imported into this project.
+2. New plans select the latest soundtrack by default. The review UI lists all
+   eligible project audio by filename and date and lets the owner choose another
+   soundtrack or explicitly choose no soundtrack. Changing it invalidates prior
+   approval and requires a new render.
+3. Soundtrack selection is independent for landscape and vertical plans. The
+   selected asset ID, selection mode (`latest`, `manual`, or `none`), and mix
+   settings are stored in the versioned timeline plan.
+4. Rendering loops or trims music to the visual duration, fades boundaries,
+   normalizes final loudness for YouTube, and mixes below useful original clip
+   audio. Silent photo segments receive soundtrack audio. The owner can mute
+   original clip audio in a later editing milestone; v1 uses safe automatic
+   ducking.
+5. Output validation confirms an audio stream, expected duration, successful
+   full decode, and soundtrack provenance in the private render metadata.
+
+## Project Pipeline Requirements
+
+1. Show one project flow: Import → Analyze → Curate → Review → Render → Ready.
+   Each step displays pending, current, complete, or failed state with concise
+   evidence such as imported count, review count, approved formats, or render
+   progress.
+2. Highlight exactly one current step and name the next actionable command. A
+   failed step remains visible with a retry action. Completed historical render
+   attempts must not make a successful retry appear unfinished.
+3. Pipeline state is derived from persisted media, analysis, latest plans,
+   approvals, latest render attempts, and validated outputs. Do not store a
+   second mutable workflow status that can disagree with those records.
+4. The flow must fit desktop and mobile without overlapping labels and must
+   remain useful with either one or both output variants.
 
 ## Privacy and Runtime
 
@@ -92,6 +142,9 @@ is a release gate before pushing code.
 | L4 Semantic local model | local vision provider, model manifest/cache config | Validated open-eye/blur/burst decisions, landmark/scenery relevance, video highlights; resource measurements and uncertain-case review. |
 | L5 Selection review | dashboard, project schemas/routes, selection persistence | Thumbnail comparisons, include/exclude/pin, duplicate alternatives, trims, target duration; versioned decisions and approval invalidation. |
 | L6 Laptop acceptance | demo scripts, local runbook, privacy/secret check, status | Large Photos trip album imported, curated, reviewed, rendered, played; no cloud execution or media in GitHub. |
+| L7 Story intelligence | local vision schema/prompt, `local_analysis.py`, shared `curation.py`, planning/tests | Multi-frame video evidence; exact/visual/semantic repetition report; bounded story beats; chronology and owner overrides preserved. |
+| L8 Soundtrack | media probe/upload, plan schema/review routes, worker renderer/validation, dashboard | Newest eligible local audio defaults; manual/none choice; approval invalidation; licensed-source notice; mixed and validated output. |
+| L9 Pipeline experience | derived project-progress module, status response, dashboard/CSS/tests | Import-to-ready flow names current/next action and accurately handles retries, failures, one/two variants, desktop, and mobile. |
 
 ## Acceptance Datasets and Gates
 
@@ -111,16 +164,24 @@ is a release gate before pushing code.
   before claiming general phone-album compatibility.
 - No public deployment gate. Local installation, reliability, privacy, album
   access and owner-approved editing quality are the release gates.
+- Story acceptance includes a fixture with bursts, repeated location views, a
+  photo matching a video frame, several distinct trip events, and a weak ending.
+  The plan must retain the strongest representative, cover distinct events, and
+  produce opening/middle/highlight/closing beats without padding.
+- Soundtrack acceptance uses two local audio fixtures with different import
+  times. The newer one is selected by default, manual and none choices persist,
+  original clip audio remains audible beneath music, and no network request is
+  made to discover or retrieve music.
 
 ## Current Evidence
 
-Earlier Yellowstone HTTP upload -> ClamAV -> Redis/RQ -> FFmpeg -> private download
-completed with 26-second landscape and 21-second portrait outputs. These were
-all-input montages, not completion of this curation PRD. The L3 Picker transport,
-OAuth, encrypted state, private resumable ingest and dashboard flow are now
-implemented and unit-tested; L3 remains open until a real private album completes
-the workflow on this laptop. The L4 baseline now runs an Apache-2.0 local vision
-model through a strict loopback-only schema and has completed a seven-asset
-Yellowstone analysis; portrait/eye-state and large-album acceptance remain.
+Yellowstone and a 35-item owner-selected Google Photos trip have completed the
+local import, review, render, validation, preview and download workflow in both
+formats. L3 is accepted for the Picker-supported selection flow. L7 now has a
+versioned story selector with semantic repetition limits, story beats and a
+suppression report; multi-frame video evidence remains. L8 has a working local
+MP3/WAV selection and render baseline, pending owner-audio acceptance. L9 has a
+retry-aware derived pipeline in the status response and dashboard. The L4 model
+still needs portrait/eye-state and large-album acceptance.
 Current results and next actions live in
 [status.md](status.md).

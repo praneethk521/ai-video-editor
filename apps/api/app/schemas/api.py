@@ -158,6 +158,11 @@ class PlanReviewRequest(BaseModel):
     notes: str | None = Field(default=None, max_length=2000)
 
 
+class SoundtrackUpdateRequest(BaseModel):
+    mode: Literal["latest", "manual", "none"]
+    asset_id: str | None = Field(default=None, min_length=1, max_length=64)
+
+
 class PlanRegenerateRequest(BaseModel):
     variants: list[str] = Field(default_factory=lambda: ["youtube_16x9", "shorts_9x16"])
     notes: str | None = Field(default=None, max_length=2000)
@@ -179,6 +184,7 @@ class ProjectStatusResponse(BaseModel):
     role: str
     media_count: int
     render_jobs: list[dict]
+    pipeline: dict
 
 
 class ProjectUsageMetric(BaseModel):

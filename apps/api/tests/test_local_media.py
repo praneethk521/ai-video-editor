@@ -8,6 +8,7 @@ from app.models.entities import MediaAsset, OutputVideo, PlanStatus, Project, Pr
 from app.services import local_media
 from app.services.malware import ClamAVScanner
 from app.services.rendering import complete_render_job, refresh_project_render_status
+from video_shared import media as shared_media
 
 
 @pytest.fixture
@@ -29,6 +30,26 @@ def test_upload_persists_scanned_probed_metadata(client, auth_headers, db_sessio
     assert asset.malware_scan_status == "clean"
     assert asset.metadata_json["source"] == "local_upload"
     assert (root / asset.metadata_json["relative_path"]).read_bytes() == b"fixture"
+
+
+def test_media_probe_accepts_mp3_soundtrack(monkeypatch, tmp_path):
+    payload = '{"streams":[{"codec_type":"audio","codec_name":"mp3"}],"format":{"format_name":"mp3","duration":"42.5"}}'
+    monkeypatch.setattr(
+        shared_media.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(stdout=payload),
+    )
+
+    result = shared_media.probe_media(tmp_path / "soundtrack")
+
+    assert result == {
+        "mime_type": "audio/mpeg",
+        "duration_seconds": 42.5,
+        "width": 0,
+        "height": 0,
+        "orientation": "audio",
+        "has_audio": True,
+    }
 
 
 @pytest.mark.parametrize("failure", ["oversize", "infected", "corrupt"])

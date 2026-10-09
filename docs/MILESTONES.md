@@ -1,6 +1,6 @@
 # Milestones
 
-## Active Laptop Roadmap (2026-10-06)
+## Active Laptop Roadmap (2026-10-09)
 
 The authoritative scope is `PRD_TRIP_VIDEO.md`: laptop-only execution, Google
 Photos albums, local intelligent curation and review. No public/cloud deployment.
@@ -13,11 +13,41 @@ L4 has a working Ollama/Qwen 2.5 VL baseline with strict local inference,
 confidence handling and semantic story diversity. Portrait/eye-state fixtures,
 multi-frame semantic video scoring and large-album measurements remain.
 
-Current gate status: L1-L2 are working baselines, L3 is implemented pending a
-real owner OAuth run, L4 is a validated scenic baseline, L5 has authenticated
-thumbnail review with include, exclude, pin, ordering and trim overrides, and L6
-remains partial. Duplicate comparison and large-album acceptance are next.
+Current gate status: L1-L6 have a working owner-trip path. L7 story intelligence,
+L8 owner-provided soundtrack selection/mixing, and L9 derived pipeline progress
+are the active product milestones. Pipeline visibility and semantic repetition
+control are first; soundtrack persistence and mixing follow behind the same
+versioned plan/review seam.
 See `status.md` for the exact acceptance evidence.
+
+## L7 - Story Intelligence
+
+Status: In progress
+
+- Suppress exact, visual, and excessive semantic repetition across photos and videos.
+- Use multi-frame video evidence rather than one representative frame.
+- Assign opening, journey, highlight, detail/people, and closing story beats.
+- Preserve chronology and explicit owner overrides.
+- Report coverage, repetition suppression, confidence, and review gaps.
+
+## L8 - Local Soundtrack
+
+Status: Planned
+
+- Accept and safely probe owner-provided audio files.
+- Default each new plan to the newest eligible project soundtrack.
+- Offer manual soundtrack and no-soundtrack choices in plan review.
+- Mix music under useful original audio with fades and YouTube loudness targets.
+- Validate soundtrack provenance, output audio, duration, and decode.
+
+## L9 - Project Pipeline Experience
+
+Status: In progress
+
+- Derive Import → Analyze → Curate → Review → Render → Ready from durable data.
+- Return current and next steps from project status.
+- Show complete/current/pending/failed states responsively in the dashboard.
+- Keep retries and historical failed attempts from obscuring successful outputs.
 
 ## M0 - Secure Foundation
 

@@ -57,13 +57,20 @@ def test_actual_images_video_and_audio_survive_render(tmp_path, monkeypatch, var
 
     photo = source / "photo.jpg"
     video = source / "clip.mp4"
+    soundtrack = source / "soundtrack.wav"
     ffmpeg("-f", "lavfi", "-i", "color=red:s=160x90", "-frames:v", "1", str(photo))
     ffmpeg("-f", "lavfi", "-i", "color=blue:s=160x90:r=30:d=0.6", "-f", "lavfi", "-i",
            "sine=frequency=440:duration=0.6", "-c:v", "libx264", "-c:a", "aac", "-shortest", str(video))
+    ffmpeg("-f", "lavfi", "-i", "sine=frequency=880:duration=0.7", str(soundtrack))
     sources = {name: {"relative_path": f"project-test/{path.name}", "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
-               for name, path in (("photo", photo), ("video", video))}
+               for name, path in (("photo", photo), ("video", video), ("soundtrack", soundtrack))}
     monkeypatch.setattr(render, "settings", replace(render.settings, media_source_root=str(root)))
     plan = build_timeline_plan("project-test", [AssetSummary("photo", 3), AssetSummary("video", 0.6)], variant)
+    plan["soundtrack"] = {"mode": "manual", "asset_id": "soundtrack", "filename": "soundtrack.wav",
+                            "music_gain_db": -13, "original_gain_db": -3}
+    plan["tracks"].append({"type": "audio", "clips": [{"asset_id": "soundtrack", "start": 0,
+                                                          "end": 3.6, "timeline_start": 0,
+                                                          "effect": "soundtrack"}]})
     result = VideoRenderer(tmp_path / "outputs").render(plan, sources=sources)
     assert result.validation["status"] == "passed"
     assert result.validation["signals"]["black_frames"]["detected"] is False
@@ -79,6 +86,8 @@ def test_actual_images_video_and_audio_survive_render(tmp_path, monkeypatch, var
     sound = ffmpeg("-ss", "3.2", "-i", result.output_path, "-t", "0.2", "-vn", "-ac", "1", "-f", "s16le", "pipe:1")
     samples = array.array("h", sound)
     assert max(abs(sample) for sample in samples) > 500
+    photo_sound = ffmpeg("-ss", "1", "-i", result.output_path, "-t", "0.2", "-vn", "-ac", "1", "-f", "s16le", "pipe:1")
+    assert max(abs(sample) for sample in array.array("h", photo_sound)) > 500
     assert not list((tmp_path / "outputs" / "project-test").glob("segments-*"))
 
 

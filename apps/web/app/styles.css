@@ -195,6 +195,87 @@ p {
   margin-bottom: 18px;
 }
 
+.pipelinePanel {
+  margin-bottom: 18px;
+}
+
+.pipelineHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.pipelineHeader span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.pipelineFlow {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pipelineStep {
+  min-width: 0;
+  min-height: 92px;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  border-top: 3px solid var(--line);
+  padding: 10px 8px 0;
+}
+
+.pipelineStep strong {
+  font-size: 13px;
+}
+
+.pipelineStep > span:last-child {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.pipelineIcon {
+  width: 20px;
+  height: 20px;
+  color: var(--muted);
+}
+
+.pipelineStep.complete {
+  border-color: var(--accent);
+}
+
+.pipelineStep.complete .pipelineIcon {
+  color: var(--accent);
+}
+
+.pipelineStep.current {
+  border-color: #2d6fbb;
+  background: #eef5fc;
+}
+
+.pipelineStep.current .pipelineIcon {
+  color: #2d6fbb;
+}
+
+.pipelineStep.failed {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.pipelineStep.failed .pipelineIcon {
+  color: var(--danger);
+}
+
 .usagePanel {
   margin-bottom: 18px;
 }
@@ -609,6 +690,10 @@ button.iconButton {
   .statusGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .pipelineFlow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 560px) {
@@ -622,6 +707,19 @@ button.iconButton {
   .topActions,
   .buttonRow {
     width: 100%;
+  }
+
+  .pipelineHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pipelineHeader span {
+    text-align: left;
+  }
+
+  .pipelineFlow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   button {
@@ -658,6 +756,8 @@ input[type="file"] { max-width: 100%; min-width: 0; }
 .selectionTitle strong { overflow-wrap: anywhere; }
 .selectionTitle span, .decisionReasons { color: var(--muted); font-size: 12px; }
 .decisionReasons { overflow-wrap: anywhere; }
+.storyBeat { width: fit-content; padding: 3px 6px; border: 1px solid #b8cce0; color: #24557f; font-size: 11px; font-weight: 800; text-transform: capitalize; }
+.soundtrackField { margin: 12px 0; }
 .duplicateNote { padding: 6px 8px; border-left: 3px solid var(--warning); background: var(--warning-soft); color: #654500; font-size: 12px; }
 .decisionToggles { display: flex; flex-wrap: wrap; gap: 16px; }
 .decisionToggles label { display: inline-flex; grid-template-columns: none; flex-direction: row; align-items: center; gap: 6px; color: var(--text); }

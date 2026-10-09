@@ -149,3 +149,40 @@ def test_media_list_and_thumbnail_are_project_scoped(client, auth_headers, db_se
         f"/projects/{other_project}/media/{assets[0].id}/thumbnail",
         headers=auth_headers,
     ).status_code == 404
+
+
+def test_owner_can_choose_or_remove_plan_soundtrack(client, auth_headers, db_session):
+    project_id, _, plan = add_review_fixture(client, auth_headers, db_session)
+    soundtrack = MediaAsset(
+        project_id=project_id,
+        original_filename="trip-theme.mp3",
+        sanitized_filename="trip-theme.mp3",
+        mime_type="audio/mpeg",
+        size_bytes=100,
+        duration_seconds=60,
+        orientation="audio",
+        private_locator=f"file://private/sources/{project_id}/music",
+        malware_scan_status="clean",
+        metadata_json={},
+    )
+    db_session.add(soundtrack)
+    db_session.commit()
+
+    selected = client.put(
+        f"/projects/{project_id}/plans/{plan.id}/soundtrack",
+        headers=auth_headers,
+        json={"mode": "manual", "asset_id": soundtrack.id},
+    )
+    assert selected.status_code == 200
+    assert selected.json()["status"] == "draft"
+    assert selected.json()["plan"]["soundtrack"]["asset_id"] == soundtrack.id
+    assert selected.json()["plan"]["tracks"][1]["type"] == "audio"
+
+    removed = client.put(
+        f"/projects/{project_id}/plans/{plan.id}/soundtrack",
+        headers=auth_headers,
+        json={"mode": "none"},
+    )
+    assert removed.status_code == 200
+    assert removed.json()["plan"]["soundtrack"]["mode"] == "none"
+    assert [track["type"] for track in removed.json()["plan"]["tracks"]] == ["video"]

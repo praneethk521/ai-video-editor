@@ -82,7 +82,7 @@ def test_render_timeline_returns_private_output_metadata():
     assert result["validation"]["status"] == "skipped"
 
 
-@pytest.mark.parametrize("method", ["local_semantic_curation_v1", "owner_reviewed_v1"])
+@pytest.mark.parametrize("method", ["local_semantic_curation_v1", "local_story_curation_v2", "owner_reviewed_v1"])
 def test_worker_accepts_reviewed_selection_methods(method):
     plan = {
         "project_id": "project-1",

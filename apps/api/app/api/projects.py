@@ -37,6 +37,7 @@ from app.schemas.api import (
     ProjectUsageResponse,
     RenderRequest,
     RenderResponse,
+    SoundtrackUpdateRequest,
     TimelinePlanRead,
     TimelinePlansResponse,
     UserMembershipRoleUpdate,
@@ -55,6 +56,7 @@ from app.services.planning import (
     list_timeline_plans,
     regenerate_timeline_plans,
     reject_timeline_plan,
+    set_plan_soundtrack,
     update_timeline_plan,
 )
 from app.services.quotas import (
@@ -64,6 +66,7 @@ from app.services.quotas import (
     consume_project_quota,
     project_usage_summary,
 )
+from app.services.project_progress import derive_project_pipeline
 from app.services.rate_limits import enforce_project_rate_limit
 from app.services.rendering import create_render_jobs, dispatch_render_jobs, fail_render_job
 
@@ -543,6 +546,42 @@ def update_plan(
     return plan_to_response(plan)
 
 
+@router.put("/{project_id}/plans/{plan_id}/soundtrack", response_model=TimelinePlanRead)
+def update_plan_soundtrack(
+    project_id: str,
+    plan_id: str,
+    payload: SoundtrackUpdateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    get_project_for_role_or_404(
+        db, project_id, user, minimum_role="reviewer", request=request,
+        requested_action="timeline.plan.soundtrack.update",
+    )
+    try:
+        plan = set_plan_soundtrack(
+            db,
+            project_id=project_id,
+            plan_id=plan_id,
+            mode=payload.mode,
+            asset_id=payload.asset_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    audit(
+        db,
+        user_id=user.id,
+        project_id=project_id,
+        action="timeline.plan.soundtrack.updated",
+        correlation_id=request.state.correlation_id,
+        metadata={"plan_id": plan_id, "variant": plan.variant, "mode": payload.mode},
+    )
+    db.commit()
+    db.refresh(plan)
+    return plan_to_response(plan)
+
+
 @router.post("/{project_id}/plans/{plan_id}/reject", response_model=TimelinePlanRead)
 def reject_plan(
     project_id: str,
@@ -641,6 +680,7 @@ def project_status(
         role=project_role_for_user(db, project=project, user=user) or "viewer",
         media_count=media_count,
         render_jobs=[{"id": job.id, "variant": job.variant, "status": job.status.value} for job in jobs],
+        pipeline=derive_project_pipeline(db, project_id=project.id),
     )
 
 
