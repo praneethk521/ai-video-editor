@@ -255,12 +255,18 @@ def create_timeline_plans(
             analysis_json=analysis_json,
             target_seconds=target_duration,
         )
+        generated_preset = None
+        soundtrack_mode = "auto"
+        if soundtrack is None:
+            generated_preset, reason = generated_soundtrack_preset(analysis_json)
+            soundtrack_mode = "generated"
         plan_json = apply_soundtrack(
             plan_json,
             soundtrack,
-            mode="auto" if soundtrack else "none",
+            mode=soundtrack_mode,
             selection_reason=reason,
             relevance_score=relevance_score,
+            generated_preset=generated_preset,
         )
         if selection is not None:
             plan_json["selection"] = {key: value for key, value in selection.items() if key != "selected"}
@@ -299,19 +305,23 @@ def set_plan_soundtrack(
     plan = get_project_plan(db, project_id=project_id, plan_id=plan_id)
     reason = None
     relevance_score = None
+    generated_preset = None
     if mode == "none":
         soundtrack = None
     elif mode in {"auto", "latest"}:
         analysis = latest_analysis_result(db, project_id=project_id)
+        analysis_json = analysis.result_json if analysis else {}
         soundtrack, reason, relevance_score = recommended_soundtrack(
             db,
             project_id=project_id,
-            analysis_json=analysis.result_json if analysis else {},
+            analysis_json=analysis_json,
             target_seconds=_visual_duration(plan.plan_json),
         )
         if soundtrack is None:
-            raise ValueError("project has no eligible soundtrack audio")
-        mode = "auto"
+            generated_preset, reason = generated_soundtrack_preset(analysis_json)
+            mode = "generated"
+        else:
+            mode = "auto"
     elif mode == "manual":
         soundtrack = db.get(MediaAsset, asset_id) if asset_id else None
         if (soundtrack is None or soundtrack.project_id != project_id
@@ -324,8 +334,10 @@ def set_plan_soundtrack(
         dict(plan.plan_json),
         soundtrack,
         mode=mode,
-        selection_reason=reason if mode == "auto" else "Selected by reviewer" if mode == "manual" else None,
+        selection_reason=(reason if mode in {"auto", "generated"}
+                          else "Selected by reviewer" if mode == "manual" else "Disabled by reviewer"),
         relevance_score=relevance_score if mode == "auto" else None,
+        generated_preset=generated_preset if mode == "generated" else None,
     )
     plan_json["version"] = int(plan_json.get("version", 1)) + 1
     plan.plan_json = plan_json
@@ -418,6 +430,15 @@ def _tokens(value: object) -> set[str]:
     return {token for token in re.findall(r"[a-z0-9]+", str(value or "").lower()) if len(token) >= 3}
 
 
+def generated_soundtrack_preset(analysis_json: dict) -> tuple[str, str]:
+    terms = _story_terms(analysis_json)
+    if terms & {"activity", "adventure", "energetic", "journey", "mountain", "upbeat", "wildlife"}:
+        return "bright_journey", "Original upbeat score selected for an active travel story"
+    if terms & {"group", "happy", "people", "portrait", "warm"}:
+        return "warm_memories", "Original warm score selected for people and memory-focused moments"
+    return "calm_cinematic", "Original calm cinematic score selected for scenic storytelling"
+
+
 def _visual_duration(plan_json: dict) -> float:
     return max(
         (clip["timeline_start"] + clip["end"] - clip["start"]
@@ -434,6 +455,7 @@ def apply_soundtrack(
     mode: str,
     selection_reason: str | None = None,
     relevance_score: float | None = None,
+    generated_preset: str | None = None,
 ) -> dict:
     tracks = [track for track in plan_json.get("tracks", []) if track.get("type") != "audio"]
     duration = _visual_duration({"tracks": tracks})
@@ -452,8 +474,10 @@ def apply_soundtrack(
         "filename": soundtrack.original_filename if soundtrack else None,
         "music_gain_db": -13,
         "original_gain_db": -3,
+        "include_original_audio": False,
         "selection_reason": selection_reason,
         "relevance_score": relevance_score,
+        "generated_preset": generated_preset,
     }
     return plan_json
 

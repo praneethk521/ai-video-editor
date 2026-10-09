@@ -40,13 +40,18 @@
       "required": ["mode", "asset_id", "filename", "music_gain_db", "original_gain_db"],
       "additionalProperties": false,
       "properties": {
-        "mode": { "type": "string", "enum": ["auto", "latest", "manual", "none"] },
+        "mode": { "type": "string", "enum": ["auto", "generated", "latest", "manual", "none"] },
         "asset_id": { "type": ["string", "null"] },
         "filename": { "type": ["string", "null"] },
         "music_gain_db": { "type": "number", "minimum": -40, "maximum": 0 },
         "original_gain_db": { "type": "number", "minimum": -40, "maximum": 0 },
+        "include_original_audio": { "type": "boolean" },
         "selection_reason": { "type": ["string", "null"] },
-        "relevance_score": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+        "relevance_score": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "generated_preset": {
+          "type": ["string", "null"],
+          "enum": ["calm_cinematic", "bright_journey", "warm_memories", null]
+        }
       }
     },
     "tracks": {

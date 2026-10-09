@@ -84,10 +84,10 @@ References checked 2026-10-05:
 
 ## Soundtrack Requirements
 
-1. A soundtrack is optional and must be an owner-provided local audio file that
-   the owner is licensed or otherwise permitted to use. Never scrape, stream, or
-   silently download a current commercial song. Automatic selection considers
-   only eligible soundtrack assets imported into the project.
+1. Every new plan has a soundtrack. If no user-provided audio is available, the
+   renderer creates an original procedural score locally from approved presets;
+   it never searches, scrapes, streams, or downloads third-party music. Uploaded
+   audio must be licensed or otherwise permitted for the user's intended use.
 2. New plans select the most relevant eligible soundtrack by default. Ranking
    uses story-theme overlap from safe filename/embedded title, genre, and mood
    metadata, useful duration, and recency as a tie-breaker. The plan records the
@@ -97,11 +97,10 @@ References checked 2026-10-05:
 3. Soundtrack selection is independent for landscape and vertical plans. The
    selected asset ID, selection mode (`auto`, `manual`, or `none`), and mix
    settings are stored in the versioned timeline plan.
-4. Rendering loops or trims music to the visual duration, fades boundaries,
-   normalizes final loudness for YouTube, and mixes below useful original clip
-   audio. Silent photo segments receive soundtrack audio. The owner can mute
-   original clip audio in a later editing milestone; v1 uses safe automatic
-   ducking.
+4. Rendering loops or trims uploaded music to the visual duration, fades
+   boundaries, and normalizes final loudness for YouTube. Source-video audio is
+   muted in new plans so the selected or generated score is the only final audio.
+   An explicit `none` choice produces a silent audio track for compatibility.
 5. Output validation confirms an audio stream, expected duration, successful
    full decode, and soundtrack provenance in the private render metadata.
 
@@ -145,7 +144,7 @@ is a release gate before pushing code.
 | L5 Selection review | dashboard, project schemas/routes, selection persistence | Thumbnail comparisons, include/exclude/pin, duplicate alternatives, trims, target duration; versioned decisions and approval invalidation. |
 | L6 Laptop acceptance | demo scripts, local runbook, privacy/secret check, status | Large Photos trip album imported, curated, reviewed, rendered, played; no cloud execution or media in GitHub. |
 | L7 Story intelligence | local vision schema/prompt, `local_analysis.py`, shared `curation.py`, planning/tests | Multi-frame video evidence; exact/visual/semantic repetition report; bounded story beats; chronology and owner overrides preserved. |
-| L8 Soundtrack | media probe/upload, plan schema/review routes, worker renderer/validation, dashboard | Relevant eligible local audio defaults with a recorded reason; manual/none choice; approval invalidation; licensed-source notice; mixed and validated output. |
+| L8 Soundtrack | media probe/upload, plan schema/review routes, worker renderer/validation, dashboard | Relevant eligible local audio defaults with an original generated fallback and recorded provenance; manual/none choice; source audio muted; approval invalidation; validated output. |
 | L9 Pipeline experience | derived project-progress module, status response, dashboard/CSS/tests | Import-to-ready flow names current/next action and accurately handles retries, failures, one/two variants, desktop, and mobile. |
 
 ## Acceptance Datasets and Gates
@@ -173,8 +172,9 @@ is a release gate before pushing code.
 - Soundtrack acceptance uses multiple local audio fixtures with different
   semantic metadata and import times. The story-relevant one is selected by
   default, recency breaks equivalent ties, manual and none choices persist,
-  original clip audio remains audible beneath music, and no network request is
-  made to discover or retrieve music.
+  source-video audio is absent from the final mix, and no network request is made
+  to discover or retrieve music. A no-upload fixture receives a validated
+  original generated score with explicit preset provenance.
 
 ## Current Evidence
 

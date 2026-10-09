@@ -183,6 +183,9 @@ def test_curated_plan_budget_and_regeneration_invalidates_approval(client, auth_
     db_session.flush()
     assert len(first.plan_json["tracks"][0]["clips"]) == 5
     assert first.plan_json["selection"]["duration_seconds"] == 15
+    assert first.plan_json["soundtrack"]["mode"] == "generated"
+    assert first.plan_json["soundtrack"]["generated_preset"] == "calm_cinematic"
+    assert first.plan_json["soundtrack"]["include_original_audio"] is False
     approve_timeline_plan(db_session, project_id=project_id, plan_id=first.id, notes=None)
     create_timeline_plans(db_session, project_id=project_id, analysis_json=analysis, variants=["shorts_9x16"])
     assert first.status == PlanStatus.rejected
@@ -247,3 +250,20 @@ def test_automatic_soundtrack_falls_back_to_newest_when_candidates_are_equivalen
     )[0]
 
     assert plan.plan_json["soundtrack"]["asset_id"] == assets[1].id
+
+
+def test_generated_soundtrack_matches_active_story_without_uploaded_audio(client, auth_headers, db_session):
+    project_id = client.post("/projects", headers=auth_headers, json={"name": "Generated"}).json()["id"]
+    analysis = {
+        "provider": "local-pixel-quality-v1",
+        "asset_features": [candidate("hike", tags=["mountain", "activity"], story_group="activity:hiking")],
+    }
+
+    plan = create_timeline_plans(
+        db_session, project_id=project_id, analysis_json=analysis, variants=["youtube_16x9"]
+    )[0]
+
+    assert plan.plan_json["soundtrack"]["mode"] == "generated"
+    assert plan.plan_json["soundtrack"]["generated_preset"] == "bright_journey"
+    assert plan.plan_json["soundtrack"]["asset_id"] is None
+    assert "Original upbeat score" in plan.plan_json["soundtrack"]["selection_reason"]

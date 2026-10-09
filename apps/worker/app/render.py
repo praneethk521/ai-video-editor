@@ -148,22 +148,38 @@ class VideoRenderer:
             concat.write_text("".join(f"file '{segment.name}'\n" for segment in segments))
             assembled = directory / "assembled.mp4"
             run(["-f", "concat", "-safe", "1", "-i", str(concat), "-c", "copy", str(assembled)])
+            soundtrack_settings = plan.get("soundtrack") or {}
+            include_original = bool(soundtrack_settings.get("include_original_audio", False))
             if soundtrack is None:
-                assembled.replace(output_path)
+                if include_original:
+                    assembled.replace(output_path)
+                else:
+                    run(["-i", str(assembled), "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+                         "-map", "0:v:0", "-map", "1:a:0", "-t", str(cursor), "-c:v", "copy",
+                         "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
+                         "-map_metadata", "-1", str(output_path)])
             else:
-                clip, path = soundtrack
-                soundtrack_settings = plan.get("soundtrack") or {}
                 music_gain = float(soundtrack_settings.get("music_gain_db", -13))
                 original_gain = float(soundtrack_settings.get("original_gain_db", -3))
                 fade_out = max(0, cursor - 1)
-                mix = (
-                    f"[0:a]volume={original_gain}dB[original];"
+                if isinstance(soundtrack, str):
+                    music_input = ["-f", "lavfi", "-i", self._generated_audio_source(soundtrack, cursor)]
+                else:
+                    clip, path = soundtrack
+                    music_input = ["-stream_loop", "-1", "-ss", str(clip["start"]), "-i", str(path)]
+                music_filter = (
                     f"[1:a]volume={music_gain}dB,afade=t=in:st=0:d=1,"
-                    f"afade=t=out:st={fade_out}:d=1[music];"
-                    "[original][music]amix=inputs=2:duration=first:dropout_transition=2,"
-                    "loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
+                    f"afade=t=out:st={fade_out}:d=1[music]"
                 )
-                run(["-i", str(assembled), "-stream_loop", "-1", "-ss", str(clip["start"]), "-i", str(path),
+                if include_original:
+                    mix = (
+                        f"[0:a]volume={original_gain}dB[original];{music_filter};"
+                        "[original][music]amix=inputs=2:duration=first:dropout_transition=2,"
+                        "loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
+                    )
+                else:
+                    mix = f"{music_filter};[music]loudnorm=I=-14:TP=-1.5:LRA=11[aout]"
+                run(["-i", str(assembled), *music_input,
                      "-filter_complex", mix, "-map", "0:v:0", "-map", "[aout]", "-t", str(cursor),
                      "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
                      "-movflags", "+faststart", "-map_metadata", "-1", str(output_path)])
@@ -171,6 +187,13 @@ class VideoRenderer:
     @staticmethod
     def _resolve_soundtrack(plan: dict, audio_tracks: list[dict], sources: dict, duration: float):
         configured = plan.get("soundtrack") or {}
+        if configured.get("mode") == "generated":
+            preset = configured.get("generated_preset")
+            if audio_tracks or configured.get("asset_id") is not None or preset not in {
+                "calm_cinematic", "bright_journey", "warm_memories"
+            }:
+                raise ValueError("generated soundtrack metadata is invalid")
+            return preset
         if not audio_tracks:
             if configured.get("mode") not in {None, "none"}:
                 raise ValueError("soundtrack selection is missing its audio track")
@@ -196,6 +219,27 @@ class VideoRenderer:
         if not metadata["mime_type"].startswith("audio/"):
             raise ValueError("soundtrack source must be an audio file")
         return clip, path
+
+    @staticmethod
+    def _generated_audio_source(preset: str, duration: float) -> str:
+        expressions = {
+            "calm_cinematic": (
+                "0.045*sin(2*PI*130.81*t)+0.035*sin(2*PI*164.81*t)+"
+                "0.025*sin(2*PI*196.00*t)"
+            ),
+            "bright_journey": (
+                "(0.04*sin(2*PI*220.00*t)+0.035*sin(2*PI*277.18*t)+"
+                "0.025*sin(2*PI*329.63*t))*(0.75+0.25*sin(2*PI*0.5*t))"
+            ),
+            "warm_memories": (
+                "(0.045*sin(2*PI*174.61*t)+0.035*sin(2*PI*220.00*t)+"
+                "0.025*sin(2*PI*261.63*t))*(0.85+0.15*sin(2*PI*0.2*t))"
+            ),
+        }
+        expression = expressions.get(preset)
+        if expression is None or not 0 < duration <= 900:
+            raise ValueError("generated soundtrack preset or duration is invalid")
+        return f"aevalsrc=exprs={expression}:s=48000:d={duration}"
 
     @staticmethod
     def _duration(plan: dict) -> float:

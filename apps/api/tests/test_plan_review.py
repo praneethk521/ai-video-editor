@@ -176,6 +176,7 @@ def test_owner_can_choose_or_remove_plan_soundtrack(client, auth_headers, db_ses
     assert selected.status_code == 200
     assert selected.json()["status"] == "draft"
     assert selected.json()["plan"]["soundtrack"]["asset_id"] == soundtrack.id
+    assert selected.json()["plan"]["soundtrack"]["include_original_audio"] is False
     assert selected.json()["plan"]["tracks"][1]["type"] == "audio"
 
     removed = client.put(
@@ -185,4 +186,5 @@ def test_owner_can_choose_or_remove_plan_soundtrack(client, auth_headers, db_ses
     )
     assert removed.status_code == 200
     assert removed.json()["plan"]["soundtrack"]["mode"] == "none"
+    assert removed.json()["plan"]["soundtrack"]["include_original_audio"] is False
     assert [track["type"] for track in removed.json()["plan"]["tracks"]] == ["video"]

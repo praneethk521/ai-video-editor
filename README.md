@@ -13,8 +13,8 @@ rendered outputs under the user's control.
 - Builds landscape and vertical story plans with opening, journey, highlight,
   detail, and closing beats when the available media supports them.
 - Lets the user review selections, alternatives, ordering, trims, and duration.
-- Supports an optional user-provided soundtrack with automatic or manual
-  selection.
+- Selects a relevant user-provided soundtrack or generates an original local
+  score when no audio is supplied; manual selection remains available.
 - Renders validated video files suitable for preview and manual publishing.
 
 ## How It Works

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import array
 import hashlib
+import math
 import shutil
 import subprocess
 from dataclasses import replace
@@ -89,6 +90,42 @@ def test_actual_images_video_and_audio_survive_render(tmp_path, monkeypatch, var
     photo_sound = ffmpeg("-ss", "1", "-i", result.output_path, "-t", "0.2", "-vn", "-ac", "1", "-f", "s16le", "pipe:1")
     assert max(abs(sample) for sample in array.array("h", photo_sound)) > 500
     assert not list((tmp_path / "outputs" / "project-test").glob("segments-*"))
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="real renderer test needs FFmpeg")
+def test_generated_score_replaces_original_video_audio(tmp_path, monkeypatch):
+    root = tmp_path / "sources"
+    source = root / "project-test"
+    source.mkdir(parents=True)
+
+    def ffmpeg(*args):
+        return subprocess.run(["ffmpeg", "-v", "error", "-y", *args], check=True,
+                              capture_output=True, timeout=60).stdout
+
+    video = source / "clip.mp4"
+    ffmpeg("-f", "lavfi", "-i", "color=blue:s=160x90:r=30:d=1.2", "-f", "lavfi", "-i",
+           "sine=frequency=3000:duration=1.2", "-c:v", "libx264", "-c:a", "aac", "-shortest", str(video))
+    monkeypatch.setattr(render, "settings", replace(render.settings, media_source_root=str(root)))
+    plan = build_timeline_plan("project-test", [AssetSummary("video", 1.2)], "youtube_16x9")
+    plan["soundtrack"] = {
+        "mode": "generated", "asset_id": None, "filename": None,
+        "music_gain_db": -13, "original_gain_db": -3, "include_original_audio": False,
+        "selection_reason": "Original test score", "relevance_score": None,
+        "generated_preset": "calm_cinematic",
+    }
+    result = VideoRenderer(tmp_path / "outputs").render(plan, sources={"video": {
+        "relative_path": "project-test/clip.mp4",
+        "sha256": hashlib.sha256(video.read_bytes()).hexdigest(),
+    }})
+
+    full_band = array.array("h", ffmpeg("-i", result.output_path, "-vn", "-ac", "1", "-f", "s16le", "pipe:1"))
+    high_band = array.array("h", ffmpeg("-i", result.output_path, "-af", "highpass=f=1800",
+                                         "-vn", "-ac", "1", "-f", "s16le", "pipe:1"))
+    full_rms = math.sqrt(sum(sample * sample for sample in full_band) / len(full_band))
+    high_rms = math.sqrt(sum(sample * sample for sample in high_band) / len(high_band))
+    assert full_rms > 100
+    assert high_rms < full_rms * 0.2
+    assert result.upload_package["soundtrack"]["mode"] == "generated"
 
 
 def test_missing_and_foreign_sources_fail_before_ffmpeg(tmp_path):

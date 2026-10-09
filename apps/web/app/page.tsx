@@ -58,11 +58,13 @@ type TimelinePlanBody = {
     }>;
   };
   soundtrack?: {
-    mode: "auto" | "latest" | "manual" | "none";
+    mode: "auto" | "generated" | "latest" | "manual" | "none";
     asset_id?: string | null;
     filename?: string | null;
     selection_reason?: string | null;
     relevance_score?: number | null;
+    generated_preset?: "calm_cinematic" | "bright_journey" | "warm_memories" | null;
+    include_original_audio?: boolean;
   };
   tracks?: TimelineTrack[];
   strategy?: {
@@ -1156,7 +1158,8 @@ export default function Page() {
                 const edits = planEdits[plan.id] ?? [];
                 const soundtrackValue = plan.plan.soundtrack?.mode === "manual"
                   ? plan.plan.soundtrack.asset_id ?? "none"
-                  : plan.plan.soundtrack?.mode === "latest" ? "auto" : plan.plan.soundtrack?.mode ?? "none";
+                  : ["generated", "latest"].includes(plan.plan.soundtrack?.mode ?? "")
+                    ? "auto" : plan.plan.soundtrack?.mode ?? "none";
                 const soundtrackAssets = media.filter((asset) => asset.mime_type.startsWith("audio/"));
                 const selectedDuration = edits.filter((item) => item.selected || item.pinned)
                   .reduce((total, item) => total + Number(item.duration || 0), 0);
@@ -1183,15 +1186,15 @@ export default function Page() {
                       onChange={(event) => void updateSoundtrack(plan.id, event.target.value)}
                       disabled={busy !== null || !canReview}
                     >
-                      {soundtrackAssets.length > 0 ? <option value="auto">Automatic best match</option> : null}
+                      <option value="auto">Automatic soundtrack</option>
                       <option value="none">No soundtrack</option>
                       {soundtrackAssets.map((asset) => (
                         <option key={asset.id} value={asset.id}>{asset.filename}</option>
                       ))}
                     </select>
-                    {plan.plan.soundtrack?.mode === "auto" ? (
+                    {["auto", "generated"].includes(plan.plan.soundtrack?.mode ?? "") ? (
                       <span className="fieldHint">
-                        {plan.plan.soundtrack.filename} · {plan.plan.soundtrack.selection_reason ?? "Selected automatically"}
+                        {plan.plan.soundtrack?.filename ?? "Original generated score"} · {plan.plan.soundtrack?.selection_reason ?? "Selected automatically"}
                       </span>
                     ) : null}
                   </label>
