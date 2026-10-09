@@ -126,6 +126,15 @@ type ProjectPipeline = {
   steps: PipelineStep[];
 };
 
+const pipelineIcons = {
+  import: FolderSync,
+  analyze: Gauge,
+  curate: GitBranch,
+  review: ShieldCheck,
+  render: Clapperboard,
+  ready: FileVideo
+};
+
 const emptyPipeline: ProjectPipeline = {
   current_step: "import",
   next_action: "Select or create a project",
@@ -907,25 +916,41 @@ export default function Page() {
 
         <section className="panel pipelinePanel" aria-label="Project pipeline">
           <div className="pipelineHeader">
-            <h2>Trip pipeline</h2>
-            <span>{status?.pipeline.next_action ?? emptyPipeline.next_action}</span>
+            <div>
+              <h2>Trip pipeline</h2>
+              <p>Media in, finished story out</p>
+            </div>
+            <div className="pipelineNext">
+              <span>Next step</span>
+              <strong>{status?.pipeline.next_action ?? emptyPipeline.next_action}</strong>
+            </div>
           </div>
           <ol className="pipelineFlow">
-            {(status?.pipeline.steps ?? emptyPipeline.steps).map((step) => (
-              <li
-                className={`pipelineStep ${step.state}`}
-                key={step.id}
-                aria-current={status?.pipeline.current_step === step.id ? "step" : undefined}
-              >
-                <span className="pipelineIcon" aria-hidden="true">
-                  {step.state === "complete" ? <CheckCircle2 size={18} /> :
-                    step.state === "failed" ? <XCircle size={18} /> :
-                      step.state === "current" ? <Loader2 className="spin" size={18} /> : <Circle size={18} />}
-                </span>
-                <strong>{step.label}</strong>
-                <span>{step.detail}</span>
-              </li>
-            ))}
+            {(status?.pipeline.steps ?? emptyPipeline.steps).map((step, index) => {
+              const StageIcon = pipelineIcons[step.id as keyof typeof pipelineIcons] ?? Circle;
+              return (
+                <li
+                  className={`pipelineStep ${step.state}`}
+                  key={step.id}
+                  aria-current={status?.pipeline.current_step === step.id ? "step" : undefined}
+                >
+                  <div className="pipelineStageTop">
+                    <span className="pipelineStageIcon" aria-hidden="true"><StageIcon size={20} /></span>
+                    <span className="pipelineStageNumber">{String(index + 1).padStart(2, "0")}</span>
+                  </div>
+                  <strong>{step.label}</strong>
+                  <span className="pipelineDetail">{step.detail}</span>
+                  <span className="pipelineState">
+                    <span className="pipelineStateIcon" aria-hidden="true">
+                      {step.state === "complete" ? <CheckCircle2 size={15} /> :
+                        step.state === "failed" ? <XCircle size={15} /> :
+                          step.state === "current" ? <Loader2 className="spin" size={15} /> : <Circle size={15} />}
+                    </span>
+                    {step.state === "current" ? "In progress" : step.state}
+                  </span>
+                </li>
+              );
+            })}
           </ol>
         </section>
 
