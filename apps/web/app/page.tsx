@@ -396,8 +396,27 @@ export default function Page() {
 
   useEffect(() => {
     const existingProject = new URLSearchParams(window.location.search).get("project");
-    if (existingProject) setProjectId(existingProject);
+    const rememberedProject = window.localStorage.getItem("ai-video-editor.project");
+    const rememberedApiBase = window.localStorage.getItem("ai-video-editor.api-base");
+    const sessionToken = window.sessionStorage.getItem("ai-video-editor.api-token");
+    if (existingProject || rememberedProject) setProjectId(existingProject ?? rememberedProject ?? "");
+    if (rememberedApiBase) setApiBase(rememberedApiBase);
+    if (sessionToken) setApiToken(sessionToken);
   }, []);
+
+  useEffect(() => {
+    if (projectId) window.localStorage.setItem("ai-video-editor.project", projectId);
+    else window.localStorage.removeItem("ai-video-editor.project");
+  }, [projectId]);
+
+  useEffect(() => {
+    window.localStorage.setItem("ai-video-editor.api-base", apiBase);
+  }, [apiBase]);
+
+  useEffect(() => {
+    if (apiToken) window.sessionStorage.setItem("ai-video-editor.api-token", apiToken);
+    else window.sessionStorage.removeItem("ai-video-editor.api-token");
+  }, [apiToken]);
 
   useEffect(() => {
     return () => {
@@ -889,25 +908,27 @@ export default function Page() {
 
   return (
     <main className="shell">
-      <aside className="sidebar">
+      <header className="appHeader">
         <div className="brand">
           <Clapperboard size={20} />
-          <span>AI Video Editor</span>
+          <div>
+            <strong>AI Video Editor</strong>
+            <span>Private local studio</span>
+          </div>
         </div>
-        <nav>
-          <a className="active">Projects</a>
-          <a>Media</a>
-          <a>Plans</a>
-          <a>Renders</a>
-          <a>Audit</a>
+        <nav className="workspaceNav" aria-label="Workspace sections">
+          <a href="#overview"><GitBranch size={15} /> Overview</a>
+          <a href="#import"><FolderSync size={15} /> Import</a>
+          <a href="#review"><ShieldCheck size={15} /> Review</a>
+          <a href="#outputs"><FileVideo size={15} /> Outputs</a>
         </nav>
-      </aside>
+      </header>
 
       <section className="workspace">
         <header className="topbar">
           <div>
-            <h1>Project Console</h1>
-            <p>Local workspace</p>
+            <h1>Trip video workspace</h1>
+            <p>{status ? `${status.status} · ${projectRole}` : projectId ? "Project ID ready · open to load" : "Select or create a project"}</p>
           </div>
           <div className="topActions">
             <button className="ghost" onClick={() => void refreshOverview()} disabled={!projectId || busy !== null || !canView}>
@@ -924,7 +945,7 @@ export default function Page() {
           </div>
         </header>
 
-        <section className="panel pipelinePanel" aria-label="Project pipeline">
+        <section className="panel pipelinePanel" id="overview" aria-label="Project pipeline">
           <div className="pipelineHeader">
             <div>
               <h2>Trip pipeline</h2>
@@ -987,17 +1008,11 @@ export default function Page() {
           </article>
         </section>
 
-        <section className="panel usagePanel">
-          <div className="panelHeader">
-            <div className="usageHeading">
-              <Gauge size={18} />
-              <h2>Daily Usage</h2>
-            </div>
-            <button className="ghost" onClick={() => void refreshUsage()} disabled={!projectId || busy !== null || !canOperate}>
-              <RefreshCw size={15} />
-              Refresh
-            </button>
-          </div>
+        <details className="panel usagePanel">
+          <summary className="detailsSummary">
+            <span className="usageHeading"><Gauge size={18} /> Daily usage</span>
+            <span>{usage ? `${usage.metrics.length} tracked limits` : "Quotas and retained storage"}</span>
+          </summary>
           <div className="usageGrid">
             {(usage?.metrics ?? []).map((metric) => {
               const percent = metric.limit > 0 ? Math.min((metric.used / metric.limit) * 100, 100) : 0;
@@ -1027,26 +1042,34 @@ export default function Page() {
               <div className="emptyState">No usage loaded</div>
             )}
           </div>
-        </section>
+        </details>
 
         <section className="controlGrid">
-          <div className="panel setupPanel">
+          <div className="panel setupPanel" id="import">
             <div className="panelHeader">
-              <h2>Setup</h2>
+              <div>
+                <h2>Project & local media</h2>
+                <p>Create a project or add files from this computer.</p>
+              </div>
               {busy ? <Loader2 className="spin" size={18} /> : null}
             </div>
-            <label>
-              API base URL
-              <input value={apiBase} onChange={(event) => setApiBase(event.target.value)} />
-            </label>
-            <label>
-              Bearer token
-              <input value={apiToken} onChange={(event) => setApiToken(event.target.value)} type="password" />
-            </label>
-            <label>
-              Project access
-              <input value={projectRole} readOnly />
-            </label>
+            <details className="inlineDetails">
+              <summary>Connection settings</summary>
+              <div className="detailsFields">
+                <label>
+                  API base URL
+                  <input value={apiBase} onChange={(event) => setApiBase(event.target.value)} />
+                </label>
+                <label>
+                  Bearer token
+                  <input value={apiToken} onChange={(event) => setApiToken(event.target.value)} type="password" />
+                </label>
+                <label>
+                  Project access
+                  <input value={projectRole} readOnly />
+                </label>
+              </div>
+            </details>
             <div className="splitFields">
               <label>
                 Project name
@@ -1054,17 +1077,19 @@ export default function Page() {
               </label>
               <button onClick={() => void createProject()} disabled={busy !== null}>
                 <Plus size={16} />
-                New
+                Create
               </button>
             </div>
-            <label>
-              Project ID
-              <input value={projectId} onChange={(event) => setProjectId(event.target.value)} />
-            </label>
-            <label>
-              Google Drive folder URL (optional)
-              <input value={folderUrl} onChange={(event) => setFolderUrl(event.target.value)} />
-            </label>
+            <div className="splitFields">
+              <label>
+                Project ID
+                <input value={projectId} onChange={(event) => setProjectId(event.target.value)} />
+              </label>
+              <button className="ghost" onClick={() => void refreshOverview()}
+                disabled={!projectId || busy !== null || !canView}>
+                <RefreshCw size={16} /> Open
+              </button>
+            </div>
             <label>
               Photos, videos, and soundtrack
               <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm,audio/mpeg,audio/wav"
@@ -1076,19 +1101,30 @@ export default function Page() {
             </button>
             {uploadProgress ? <span role="status" className="muted">{uploadProgress}</span> : null}
             <div className="buttonRow">
-              <button className="ghost" onClick={() => void connectDrive()} disabled={!projectId || busy !== null || !canOperate}>
-                Connect
-              </button>
-              <button className="ghost" onClick={() => void syncDrive()} disabled={!projectId || busy !== null || !canOperate}>
-                Sync
-              </button>
               <button className="ghost" onClick={() => void analyze()} disabled={!projectId || busy !== null || !canOperate}>
-                Analyze
+                <Gauge size={16} /> Analyze media
               </button>
               <button className="ghost" onClick={() => void refreshAnalysis()} disabled={!projectId || busy !== null || !canView}>
-                Analysis
+                <RefreshCw size={16} /> Refresh analysis
               </button>
             </div>
+            <details className="inlineDetails">
+              <summary>Google Drive import</summary>
+              <div className="detailsFields">
+                <label>
+                  Drive folder URL
+                  <input value={folderUrl} onChange={(event) => setFolderUrl(event.target.value)} />
+                </label>
+                <div className="buttonRow">
+                  <button className="ghost" onClick={() => void connectDrive()} disabled={!projectId || busy !== null || !canOperate}>
+                    Connect Drive
+                  </button>
+                  <button className="ghost" onClick={() => void syncDrive()} disabled={!projectId || busy !== null || !canOperate}>
+                    Sync folder
+                  </button>
+                </div>
+              </div>
+            </details>
           </div>
 
           <div className="panel photosPanel">
@@ -1141,7 +1177,7 @@ export default function Page() {
             ) : null}
           </div>
 
-          <div className="panel reviewPanel">
+          <div className="panel reviewPanel" id="review">
             <div className="panelHeader">
               <h2>Plan Review</h2>
               <div className="buttonRow compact">
@@ -1295,12 +1331,12 @@ export default function Page() {
           </div>
         </section>
 
-        <section className="panel accessPanel">
-          <div className="panelHeader">
-            <div className="usageHeading">
-              <Users size={18} />
-              <h2>Access</h2>
-            </div>
+        <details className="panel accessPanel">
+          <summary className="detailsSummary">
+            <span className="usageHeading"><Users size={18} /> Access & teams</span>
+            <span>Project sharing</span>
+          </summary>
+          <div className="detailsToolbar">
             <button className="ghost" onClick={() => void loadAccess()} disabled={!projectId || busy !== null || !canOwn}>
               <RefreshCw size={15} />
               Load
@@ -1432,7 +1468,7 @@ export default function Page() {
               </div>
             </div>
           </div>
-        </section>
+        </details>
 
         <section className="bottomGrid">
           <div className="panel">
@@ -1482,7 +1518,7 @@ export default function Page() {
             </div>
           </div>
 
-          <div className="panel outputPanel">
+          <div className="panel outputPanel" id="outputs">
             <div className="panelHeader">
               <h2>Outputs</h2>
               <div className="buttonRow compact">

@@ -27,7 +27,7 @@ for creating a trip video from local files.
 | L6 Local acceptance | Working baseline | Public sample media and a private acceptance album both complete the workflow locally in landscape and portrait formats. A 500-file workload, broader phone/HDR coverage, resumability/cancellation and disk limits remain. |
 | L7 Story intelligence | In progress | `local_story_curation_v2` limits semantic repetition to two moments per story group, preserves chronology, assigns opening/people/journey/highlight/detail/closing beats, and reports duplicate/semantic suppression. Multi-frame video semantics and cross-media visual duplicate evidence remain. |
 | L8 Local soundtrack | Working baseline | Local MP3/WAV upload and metadata probing, story-relevant automatic selection, six selectable original presets, manual/none controls, source-audio muting, approval invalidation, fades, -14 LUFS output and private provenance metadata are implemented. The generated library includes calm, journey, memories, thriving, exciting and celebration arrangements with distinct tempo/rhythm profiles. Broader audio fixtures and owner listening review remain. |
-| L9 Pipeline experience | Implemented baseline | Status derives Import → Analyze → Curate → Review → Render → Ready from durable records, reports current/next action, and ignores superseded failed renders. The dashboard now presents a numbered, icon-led directional flow with explicit state labels and next action; desktop and narrow-viewport visual inspections pass. |
+| L9 Pipeline experience | Implemented baseline | Status derives Import → Analyze → Curate → Review → Render → Ready from durable records, reports current/next action, and ignores superseded failed renders. The dashboard uses a numbered directional flow, functional section navigation, full-width review/output work areas, remembered local project settings, and collapsed secondary administration. Decorative sidebar links were removed. Desktop and narrow-viewport visual inspections pass. |
 
 Release command: `./scripts/start-local.sh`. Owner instructions:
 [`USE_YOUR_TRIP.md`](USE_YOUR_TRIP.md).
@@ -80,8 +80,8 @@ Release command: `./scripts/start-local.sh`. Owner instructions:
   can explicitly select any of the six generated tracks in the dashboard.
 - The project status endpoint derives all six pipeline steps from durable data;
   a completed project reports approved plans, successful latest renders, and
-  validated outputs. The dashboard flow has no overlap at
-  the in-app browser's narrow viewport.
+  validated outputs. The redesigned dashboard has no horizontal overflow at
+  1440px desktop or a 390px mobile viewport.
 - Media and outputs remain gitignored. Docker context now excludes private data,
   credentials, local databases and model caches as well.
 
