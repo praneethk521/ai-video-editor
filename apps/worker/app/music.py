@@ -21,6 +21,7 @@ class ScorePreset:
     bass_gain: float
     melody_gain: float
     pulse_gain: float
+    style: str = "gentle"
 
 
 PRESETS = {
@@ -41,6 +42,7 @@ PRESETS = {
         bass_gain=0.095,
         melody_gain=0.12,
         pulse_gain=0.035,
+        style="driving",
     ),
     "warm_memories": ScorePreset(
         bpm=86,
@@ -50,6 +52,36 @@ PRESETS = {
         bass_gain=0.075,
         melody_gain=0.095,
         pulse_gain=0.022,
+    ),
+    "thriving_spirit": ScorePreset(
+        bpm=104,
+        progression=((50, 54, 57), (45, 49, 52), (47, 50, 54), (43, 47, 50)),
+        melody=(0, 1, 2, 1, 2, 1, 2, 2, 0, 1, 2, 1, 2, 2, 1, 2),
+        pad_gain=0.13,
+        bass_gain=0.09,
+        melody_gain=0.115,
+        pulse_gain=0.03,
+        style="uplifting",
+    ),
+    "exciting_motion": ScorePreset(
+        bpm=132,
+        progression=((52, 55, 59), (48, 52, 55), (55, 59, 62), (50, 54, 57)),
+        melody=(0, 2, 1, 2, 1, 2, 0, 2, 2, 1, 2, 0, 1, 2, 1, 0),
+        pad_gain=0.09,
+        bass_gain=0.12,
+        melody_gain=0.13,
+        pulse_gain=0.05,
+        style="driving",
+    ),
+    "celebration_pop": ScorePreset(
+        bpm=124,
+        progression=((48, 52, 55), (43, 47, 50), (45, 48, 52), (41, 45, 48)),
+        melody=(0, 2, 1, 2, 0, 2, 1, 2, 2, 1, 2, 1, 0, 1, 2, 2),
+        pad_gain=0.1,
+        bass_gain=0.105,
+        melody_gain=0.13,
+        pulse_gain=0.048,
+        style="celebration",
     ),
 }
 
@@ -93,8 +125,9 @@ def _sample(
     beat = bar_time / beat_seconds
     beat_index = int(beat)
     beat_phase = beat - beat_index
-    eighth = int(beat * 2) % 8
-    eighth_phase = (beat * 2) % 1
+    subdivision = 4 if preset.style in {"driving", "celebration"} else 2
+    melody_step = int(beat * subdivision) % len(preset.melody)
+    melody_phase = (beat * subdivision) % 1
     chord = preset.progression[bar % len(preset.progression)]
 
     cycle_bar = bar % 8
@@ -116,20 +149,28 @@ def _sample(
     bass_envelope = math.exp(-3.1 * beat_phase)
     bass = _soft_tone(_midi_frequency(bass_note), t) * preset.bass_gain * bass_level * bass_envelope
 
-    melody_note = chord[preset.melody[eighth] % len(chord)] + 12
-    if cycle_bar in {5, 6} and eighth in {3, 7}:
+    melody_note = chord[preset.melody[melody_step] % len(chord)] + 12
+    if cycle_bar in {5, 6} and melody_step % 8 in {3, 7}:
         melody_note += 12
-    pluck_envelope = math.exp(-5.4 * eighth_phase) * min(eighth_phase * 18, 1.0)
+    pluck_envelope = math.exp(-5.4 * melody_phase) * min(melody_phase * 18, 1.0)
     melody = _bell_tone(_midi_frequency(melody_note), t) * preset.melody_gain * melody_level * pluck_envelope
 
     pulse_phase = beat_phase * beat_seconds
     pulse_frequency = 72 - 24 * min(pulse_phase / 0.18, 1.0)
-    pulse_envelope = math.exp(-18 * pulse_phase) if beat_index in {0, 2} else 0.0
+    pulse_beats = {0, 1, 2, 3} if preset.style in {"driving", "celebration"} else {0, 2}
+    pulse_envelope = math.exp(-18 * pulse_phase) if beat_index in pulse_beats else 0.0
     pulse = math.sin(TAU * pulse_frequency * pulse_phase) * preset.pulse_gain * pulse_level * pulse_envelope
+
+    accent = 0.0
+    if preset.style == "uplifting" and cycle_bar in {4, 5, 6}:
+        accent_frequency = _midi_frequency(chord[2] + 24)
+        accent = math.sin(TAU * accent_frequency * t) * 0.025 * math.exp(-7 * melody_phase)
+    elif preset.style == "celebration" and beat_index in {1, 3}:
+        accent = _noise(round(t * SAMPLE_RATE)) * 0.028 * math.exp(-30 * pulse_phase)
 
     master = section_gain * _edge_fade(t, duration)
     pan = 0.5 + 0.22 * math.sin(TAU * t / (bar_seconds * 2))
-    center = pad + bass + pulse
+    center = pad + bass + pulse + accent
     left = (center + melody * (1 - pan) * 1.5) * master
     right = (center + melody * pan * 1.5) * master
     return left, right
@@ -145,6 +186,11 @@ def _bell_tone(frequency: float, t: float) -> float:
         + 0.28 * math.sin(TAU * frequency * 2 * t)
         + 0.09 * math.sin(TAU * frequency * 3 * t)
     )
+
+
+def _noise(frame: int) -> float:
+    value = (frame * 1_103_515_245 + 12_345) & 0x7FFFFFFF
+    return (value / 0x3FFFFFFF) - 1
 
 
 def _midi_frequency(note: int) -> float:

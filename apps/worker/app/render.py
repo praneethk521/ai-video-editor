@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.config import settings
-from app.music import generate_original_score
+from app.music import PRESETS, generate_original_score
 from app.timeline import validate_timeline
 from app.validation import skipped_validation, validate_output_file
 from video_shared.media import probe_media, safe_component, source_path
@@ -192,9 +192,7 @@ class VideoRenderer:
         configured = plan.get("soundtrack") or {}
         if configured.get("mode") == "generated":
             preset = configured.get("generated_preset")
-            if audio_tracks or configured.get("asset_id") is not None or preset not in {
-                "calm_cinematic", "bright_journey", "warm_memories"
-            }:
+            if audio_tracks or configured.get("asset_id") is not None or preset not in PRESETS:
                 raise ValueError("generated soundtrack metadata is invalid")
             return preset
         if not audio_tracks:

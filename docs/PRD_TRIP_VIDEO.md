@@ -96,8 +96,11 @@ References checked 2026-10-05:
    uses story-theme overlap from safe filename/embedded title, genre, and mood
    metadata, useful duration, and recency as a tie-breaker. The plan records the
    selected file and reason. The review UI lists all eligible project audio and
-   lets the user choose another soundtrack or explicitly choose no soundtrack.
-   Changing it invalidates prior approval and requires a new render.
+   all original generated presets, and lets the user choose another soundtrack
+   or explicitly choose no soundtrack. Generated presets cover calm cinematic,
+   bright journey, warm memories, thriving/uplifting, exciting/action, and
+   celebration moods. Changing the selection invalidates prior approval and
+   requires a new render.
 3. Soundtrack selection is independent for landscape and vertical plans. The
    selected asset ID, selection mode (`generated`, `auto`, `manual`, or `none`),
    and mix settings are stored in the versioned timeline plan.
@@ -180,7 +183,9 @@ is a release gate before pushing code.
   to discover or retrieve music. A no-upload fixture receives a validated
   original generated score with explicit preset provenance. Automated waveform
   checks reject a static drone by requiring meaningful section-level dynamics
-  and timbral movement; owner listening remains the final taste check.
+  and timbral movement. High-energy presets must have stronger short-window
+  rhythmic contrast than the calm baseline; owner listening remains the final
+  taste check.
 
 ## Current Evidence
 

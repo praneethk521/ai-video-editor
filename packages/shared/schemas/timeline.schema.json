@@ -50,7 +50,10 @@
         "relevance_score": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
         "generated_preset": {
           "type": ["string", "null"],
-          "enum": ["calm_cinematic", "bright_journey", "warm_memories", null]
+          "enum": [
+            "calm_cinematic", "bright_journey", "warm_memories",
+            "thriving_spirit", "exciting_motion", "celebration_pop", null
+          ]
         }
       }
     },

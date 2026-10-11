@@ -63,7 +63,8 @@ type TimelinePlanBody = {
     filename?: string | null;
     selection_reason?: string | null;
     relevance_score?: number | null;
-    generated_preset?: "calm_cinematic" | "bright_journey" | "warm_memories" | null;
+    generated_preset?: "calm_cinematic" | "bright_journey" | "warm_memories" |
+      "thriving_spirit" | "exciting_motion" | "celebration_pop" | null;
     include_original_audio?: boolean;
   };
   tracks?: TimelineTrack[];
@@ -617,10 +618,15 @@ export default function Page() {
 
   async function updateSoundtrack(planId: string, value: string) {
     await run("Soundtrack updated", async () => {
-      const mode = value === "auto" || value === "none" ? value : "manual";
+      const generatedPreset = value.startsWith("generated:") ? value.slice("generated:".length) : null;
+      const mode = generatedPreset ? "generated" : value === "auto" || value === "none" ? value : "manual";
       await api(`/projects/${projectId}/plans/${planId}/soundtrack`, {
         method: "PUT",
-        body: JSON.stringify({ mode, asset_id: mode === "manual" ? value : null })
+        body: JSON.stringify({
+          mode,
+          asset_id: mode === "manual" ? value : null,
+          generated_preset: generatedPreset
+        })
       });
       await Promise.all([refreshPlans(), refreshStatus()]);
     });
@@ -1158,8 +1164,9 @@ export default function Page() {
                 const edits = planEdits[plan.id] ?? [];
                 const soundtrackValue = plan.plan.soundtrack?.mode === "manual"
                   ? plan.plan.soundtrack.asset_id ?? "none"
-                  : ["generated", "latest"].includes(plan.plan.soundtrack?.mode ?? "")
-                    ? "auto" : plan.plan.soundtrack?.mode ?? "none";
+                  : plan.plan.soundtrack?.mode === "generated" && plan.plan.soundtrack.generated_preset
+                    ? `generated:${plan.plan.soundtrack.generated_preset}`
+                    : plan.plan.soundtrack?.mode === "latest" ? "auto" : plan.plan.soundtrack?.mode ?? "none";
                 const soundtrackAssets = media.filter((asset) => asset.mime_type.startsWith("audio/"));
                 const selectedDuration = edits.filter((item) => item.selected || item.pinned)
                   .reduce((total, item) => total + Number(item.duration || 0), 0);
@@ -1187,6 +1194,14 @@ export default function Page() {
                       disabled={busy !== null || !canReview}
                     >
                       <option value="auto">Automatic soundtrack</option>
+                      <optgroup label="Original generated music">
+                        <option value="generated:calm_cinematic">Calm Cinematic</option>
+                        <option value="generated:bright_journey">Bright Journey</option>
+                        <option value="generated:warm_memories">Warm Memories</option>
+                        <option value="generated:thriving_spirit">Thriving Spirit</option>
+                        <option value="generated:exciting_motion">Exciting Motion</option>
+                        <option value="generated:celebration_pop">Celebration Pop</option>
+                      </optgroup>
                       <option value="none">No soundtrack</option>
                       {soundtrackAssets.map((asset) => (
                         <option key={asset.id} value={asset.id}>{asset.filename}</option>

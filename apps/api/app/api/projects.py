@@ -566,6 +566,7 @@ def update_plan_soundtrack(
             plan_id=plan_id,
             mode=payload.mode,
             asset_id=payload.asset_id,
+            generated_preset=payload.generated_preset,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -575,7 +576,12 @@ def update_plan_soundtrack(
         project_id=project_id,
         action="timeline.plan.soundtrack.updated",
         correlation_id=request.state.correlation_id,
-        metadata={"plan_id": plan_id, "variant": plan.variant, "mode": payload.mode},
+        metadata={
+            "plan_id": plan_id,
+            "variant": plan.variant,
+            "mode": payload.mode,
+            "generated_preset": payload.generated_preset,
+        },
     )
     db.commit()
     db.refresh(plan)

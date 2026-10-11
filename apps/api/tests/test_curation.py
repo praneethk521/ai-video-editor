@@ -267,3 +267,24 @@ def test_generated_soundtrack_matches_active_story_without_uploaded_audio(client
     assert plan.plan_json["soundtrack"]["generated_preset"] == "bright_journey"
     assert plan.plan_json["soundtrack"]["asset_id"] is None
     assert "Original upbeat score" in plan.plan_json["soundtrack"]["selection_reason"]
+
+
+@pytest.mark.parametrize(("tag", "expected"), [
+    ("birthday", "celebration_pop"),
+    ("skiing", "exciting_motion"),
+    ("sunrise", "thriving_spirit"),
+])
+def test_generated_soundtrack_matches_high_energy_story_moods(
+    client, auth_headers, db_session, tag, expected,
+):
+    project_id = client.post("/projects", headers=auth_headers, json={"name": tag}).json()["id"]
+    analysis = {
+        "provider": "local-pixel-quality-v1",
+        "asset_features": [candidate(tag, tags=[tag], story_group=f"moment:{tag}")],
+    }
+
+    plan = create_timeline_plans(
+        db_session, project_id=project_id, analysis_json=analysis, variants=["youtube_16x9"]
+    )[0]
+
+    assert plan.plan_json["soundtrack"]["generated_preset"] == expected

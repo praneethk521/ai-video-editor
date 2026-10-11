@@ -179,6 +179,17 @@ def test_owner_can_choose_or_remove_plan_soundtrack(client, auth_headers, db_ses
     assert selected.json()["plan"]["soundtrack"]["include_original_audio"] is False
     assert selected.json()["plan"]["tracks"][1]["type"] == "audio"
 
+    generated = client.put(
+        f"/projects/{project_id}/plans/{plan.id}/soundtrack",
+        headers=auth_headers,
+        json={"mode": "generated", "generated_preset": "celebration_pop"},
+    )
+    assert generated.status_code == 200
+    assert generated.json()["plan"]["soundtrack"]["mode"] == "generated"
+    assert generated.json()["plan"]["soundtrack"]["generated_preset"] == "celebration_pop"
+    assert generated.json()["plan"]["soundtrack"]["selection_reason"] == "Original score selected by reviewer"
+    assert [track["type"] for track in generated.json()["plan"]["tracks"]] == ["video"]
+
     removed = client.put(
         f"/projects/{project_id}/plans/{plan.id}/soundtrack",
         headers=auth_headers,

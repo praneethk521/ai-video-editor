@@ -7,7 +7,7 @@ import wave
 
 import pytest
 
-from app.music import SAMPLE_RATE, generate_original_score
+from app.music import PRESETS, SAMPLE_RATE, generate_original_score
 
 
 def _read_mono_windows(path, seconds=1):
@@ -16,7 +16,7 @@ def _read_mono_windows(path, seconds=1):
         assert stream.getframerate() == SAMPLE_RATE
         samples = array.array("h", stream.readframes(stream.getnframes()))
     left = samples[::2]
-    window_size = SAMPLE_RATE * seconds
+    window_size = round(SAMPLE_RATE * seconds)
     windows = []
     for start in range(0, len(left) - window_size + 1, window_size):
         chunk = left[start:start + window_size]
@@ -43,13 +43,31 @@ def test_score_has_sections_dynamics_and_timbre_changes(tmp_path):
 
 def test_score_is_original_deterministic_and_preset_specific(tmp_path):
     hashes = []
-    for preset in ("calm_cinematic", "bright_journey", "warm_memories", "calm_cinematic"):
+    for preset in (*PRESETS, "calm_cinematic"):
         path = tmp_path / f"{preset}-{len(hashes)}.wav"
         generate_original_score(path, preset, 3)
         hashes.append(hashlib.sha256(path.read_bytes()).hexdigest())
 
-    assert len(set(hashes[:3])) == 3
-    assert hashes[0] == hashes[3]
+    assert len(set(hashes[:-1])) == len(PRESETS)
+    assert hashes[0] == hashes[-1]
+
+
+def test_high_energy_scores_have_stronger_rhythmic_contrast(tmp_path):
+    contrasts = {}
+    for preset in ("calm_cinematic", "thriving_spirit", "exciting_motion", "celebration_pop"):
+        score = tmp_path / f"{preset}.wav"
+        generate_original_score(score, preset, 12)
+        _, windows = _read_mono_windows(score, seconds=0.125)
+        levels = [value[0] for value in windows[8:-8]]
+        contrasts[preset] = (
+            sum(abs(first - second) for first, second in zip(levels, levels[1:]))
+            / (len(levels) - 1)
+            / (sum(levels) / len(levels))
+        )
+
+    assert contrasts["thriving_spirit"] > contrasts["calm_cinematic"]
+    assert contrasts["exciting_motion"] > contrasts["calm_cinematic"]
+    assert contrasts["celebration_pop"] > contrasts["calm_cinematic"]
 
 
 @pytest.mark.parametrize("preset,duration", [("unknown", 2), ("calm_cinematic", 0), ("calm_cinematic", 901)])

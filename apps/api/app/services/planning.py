@@ -29,6 +29,16 @@ from video_shared.timeline import AssetSummary, build_timeline_plan  # noqa: E40
 from video_shared.curation import select_candidates  # noqa: E402
 
 
+GENERATED_SOUNDTRACK_PRESETS = {
+    "calm_cinematic",
+    "bright_journey",
+    "warm_memories",
+    "thriving_spirit",
+    "exciting_motion",
+    "celebration_pop",
+}
+
+
 def analyze_and_plan(db: Session, *, project_id: str) -> tuple[AnalysisResult, list[TimelinePlan]]:
     assets = db.query(MediaAsset).filter(MediaAsset.project_id == project_id).order_by(MediaAsset.created_at, MediaAsset.id).all()
     if not assets:
@@ -301,8 +311,10 @@ def set_plan_soundtrack(
     plan_id: str,
     mode: str,
     asset_id: str | None,
+    generated_preset: str | None = None,
 ) -> TimelinePlan:
     plan = get_project_plan(db, project_id=project_id, plan_id=plan_id)
+    requested_generated_preset = generated_preset
     reason = None
     relevance_score = None
     generated_preset = None
@@ -327,6 +339,12 @@ def set_plan_soundtrack(
         if (soundtrack is None or soundtrack.project_id != project_id
                 or not soundtrack.mime_type.startswith("audio/") or soundtrack.malware_scan_status != "clean"):
             raise ValueError("selected soundtrack is not an eligible project audio file")
+    elif mode == "generated":
+        if requested_generated_preset not in GENERATED_SOUNDTRACK_PRESETS:
+            raise ValueError("selected generated soundtrack preset is not supported")
+        soundtrack = None
+        generated_preset = requested_generated_preset
+        reason = "Original score selected by reviewer"
     else:
         raise ValueError("unsupported soundtrack selection mode")
 
@@ -412,6 +430,13 @@ def _story_terms(analysis_json: dict) -> set[str]:
         "people": {"acoustic", "happy", "warm"},
         "group": {"happy", "upbeat", "warm"},
         "wildlife": {"adventure", "cinematic", "nature"},
+        "birthday": {"celebration", "happy", "party"},
+        "dance": {"celebration", "energetic", "party"},
+        "festival": {"celebration", "energetic", "party"},
+        "graduation": {"celebration", "success", "thriving"},
+        "sports": {"action", "energetic", "exciting"},
+        "sunrise": {"growth", "hopeful", "thriving"},
+        "wedding": {"celebration", "happy", "warm"},
     }
     for term in tuple(terms):
         terms.update(mood_map.get(term, set()))
@@ -432,6 +457,12 @@ def _tokens(value: object) -> set[str]:
 
 def generated_soundtrack_preset(analysis_json: dict) -> tuple[str, str]:
     terms = _story_terms(analysis_json)
+    if terms & {"birthday", "celebration", "cheers", "dance", "festival", "graduation", "party", "reunion", "wedding"}:
+        return "celebration_pop", "Original celebration score selected for joyful group moments"
+    if terms & {"action", "exciting", "rafting", "skiing", "speed", "sports", "thrill"}:
+        return "exciting_motion", "Original high-energy score selected for fast action"
+    if terms & {"achievement", "flourishing", "growth", "hopeful", "success", "sunrise", "thriving"}:
+        return "thriving_spirit", "Original uplifting score selected for growth and achievement"
     if terms & {"activity", "adventure", "energetic", "journey", "mountain", "upbeat", "wildlife"}:
         return "bright_journey", "Original upbeat score selected for an active travel story"
     if terms & {"group", "happy", "people", "portrait", "warm"}:

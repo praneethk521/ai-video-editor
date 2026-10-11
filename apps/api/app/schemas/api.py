@@ -159,8 +159,16 @@ class PlanReviewRequest(BaseModel):
 
 
 class SoundtrackUpdateRequest(BaseModel):
-    mode: Literal["auto", "latest", "manual", "none"]
+    mode: Literal["auto", "generated", "latest", "manual", "none"]
     asset_id: str | None = Field(default=None, min_length=1, max_length=64)
+    generated_preset: Literal[
+        "calm_cinematic",
+        "bright_journey",
+        "warm_memories",
+        "thriving_spirit",
+        "exciting_motion",
+        "celebration_pop",
+    ] | None = None
 
 
 class PlanRegenerateRequest(BaseModel):

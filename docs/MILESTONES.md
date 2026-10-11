@@ -37,6 +37,8 @@ Status: Working baseline
 - Select the most story-relevant eligible project soundtrack by default.
 - Offer manual soundtrack and no-soundtrack choices in plan review.
 - Generate an arranged original local score when the user supplies no audio.
+- Offer six generated moods with automatic story matching and direct reviewer
+  selection, including thriving, action, and celebration tracks.
 - Mute source-video audio, apply fades, and meet YouTube loudness targets.
 - Validate soundtrack provenance, output audio, duration, and decode.
 - Complete owner listening acceptance across all generated presets and broader
